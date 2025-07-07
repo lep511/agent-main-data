@@ -1,0 +1,46 @@
+sources:
+  my-cloud-sql-source:
+    kind: cloud-sql-postgres
+    project: prefab-breaker-440016-c6
+    region: us-central1
+    instance: hoteldb-instance
+    database: postgres
+    user: postgres
+    password: "postgres"
+
+tools:
+  search-hotels-by-name:
+    kind: postgres-sql
+    source: my-cloud-sql-source
+    description: Search for hotels based on name.
+    parameters:
+      - name: name
+        type: string
+        description: The name of the hotel.
+    statement: SELECT * FROM hotels WHERE name ILIKE '%' || $1 || '%';
+  search-hotels-by-location:
+    kind: postgres-sql
+    source: my-cloud-sql-source
+    description: Search for hotels based on location.  Result is sorted by price from least to most expensive.
+    parameters:
+      - name: location
+        type: string
+        description: The location of the hotel.
+    statement: |
+      SELECT *
+      FROM hotels
+      WHERE location ILIKE '%' || $1 || '%'
+      ORDER BY
+        CASE price_tier
+          WHEN 'Midscale' THEN 1
+          WHEN 'Upper Midscale' THEN 2
+          WHEN 'Upscale' THEN 3
+          WHEN 'Upper Upscale' THEN 4
+          WHEN 'Luxury' THEN 5
+          ELSE 99 -- Handle any unexpected values, place them at the end
+        END;
+
+toolsets:
+   my_first_toolset:
+     - search-hotels-by-name
+     - search-hotels-by-location
