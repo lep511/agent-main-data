@@ -1,31 +1,26 @@
-# Copyright 2025 Google LLC
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     https://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+FROM python:3.13-slim
 
-FROM python:3.12-slim
+# Copy uv from the official image
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-ADD . /app
+# Set working directory
 WORKDIR /app
 
-RUN uv sync --frozen
+# Copy dependency files first for better caching
+COPY pyproject.toml uv.lock README.md ./
 
-EXPOSE 8080
+# Install dependencies
+RUN uv venv .venv && uv sync --frozen
 
+# Copy the rest of the application
+COPY . .
+
+# Set environment variables
 ENV PYTHONUNBUFFERED=1
+ENV PORT=8080
+ENV PATH="/app/.venv/bin:$PATH"
 
-ENTRYPOINT ["uv", "run", "purchasing_concierge_demo.py", "--host", "0.0.0.0", "--port", "8080"]
+EXPOSE $PORT
+
+# Use uv run
+ENTRYPOINT ["uv", "run", "purchasing_concierge_demo.py"]
