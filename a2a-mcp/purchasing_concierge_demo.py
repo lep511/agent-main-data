@@ -14,7 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import os
 import gradio as gr
 from typing import List, Dict, Any
 from purchasing_concierge.agent import root_agent as purchasing_agent
@@ -117,10 +116,8 @@ if __name__ == "__main__":
         type="messages",
     )
 
-    # Get port from environment variable (Cloud Run sets this)
-    port = int(os.environ.get("PORT", 8080))
-    
     demo.launch(
         server_name="0.0.0.0",
-        server_port=port,
+        server_port=8080,
+        share=True,
     )
