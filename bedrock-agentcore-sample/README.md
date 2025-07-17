@@ -1,6 +1,8 @@
 
 ## Amazon Bedrock AgentCore sample
 
+#### **[Tutorial - AWS Docs](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/getting-started-custom.html)**
+
 In just a few years, foundation models (FMs) have evolved from being used directly to create content in response to a user’s prompt, to now powering AI agents, a new class of software applications that use FMs to reason, plan, act, learn, and adapt in pursuit of user-defined goals with limited human oversight. This new wave of agentic AI is enabled by the emergence of standardized protocols such as Model Context Protocol (MCP) and Agent2Agent (A2A) that simplify how agents connect with other tools and systems
 
 **Amazon Bedrock AgentCore** is a comprehensive set of enterprise-grade services that help developers quickly and securely deploy and operate AI agents at scale using any framework and model, hosted on Amazon Bedrock or elsewhere.
