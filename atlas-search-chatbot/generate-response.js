@@ -111,7 +111,7 @@ async function processQuestion(question, provider = 'gemini') {
     console.log(`Retrieved ${documents.length} documents\n`);
     
     // Uncomment to see retrieved documents
-    console.log('Retrieved documents:', documents);
+    // console.log('Retrieved documents:', documents);
 
     // Create the prompt
     const prompt = createPrompt(question, documents);
