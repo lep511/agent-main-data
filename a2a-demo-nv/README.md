@@ -104,22 +104,17 @@ Click on the task list to see all the A2A task updates from the remote agents
 
 Agent can also be built using a container file.
 
-1. Navigate to the `samples/python` directory:
-
-  ```bash
-  cd samples/python
-  ```
-
-2. Build the container file
+1. Build the container file
 
     ```bash
-    podman build -f demo/ui/Containerfile . -t a2a-ui
+    cd ui
+    podman build -f Containerfile . -t a2a-ui
     ```
 
 > [!Tip]  
 > Podman is a drop-in replacement for `docker` which can also be used in these commands.
 
-3. Run you container
+2. Run you container
 
     ```bash
     podman run -p 12000:12000 --network host a2a-ui
