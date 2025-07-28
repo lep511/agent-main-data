@@ -97,6 +97,32 @@ Finally, we can run our A2A client capabilities owned by purchasing concierge ag
     ```
 
 4. You should be able to access the UI at `http://localhost:8000`
+
+## Deploy the Purchasing Concierge Agent to Cloud Run
+
+Fill in the required environment variables in the `.env` file. Substitute `GCLOUD_PROJECT_ID` with your Google Cloud Project ID.
+
+```
+PIZZA_SELLER_AGENT_AUTH=pizza123
+PIZZA_SELLER_AGENT_URL=http://localhost:10000
+BURGER_SELLER_AGENT_AUTH=burgeruser123:burgerpass123
+BURGER_SELLER_AGENT_URL=http://localhost:10001
+GOOGLE_GENAI_USE_VERTEXAI=TRUE
+GOOGLE_CLOUD_PROJECT={your-project-id}
+GOOGLE_CLOUD_LOCATION=us-central1
+```
+
+You can deploy the purchasing concierge agent to Cloud Run using the following command:
+
+```bash
+gcloud run deploy purchasing-concierge \
+           --source . \
+           --port=8080 \
+           --allow-unauthenticated \
+           --min 1 \
+           --region us-central1 \
+           --memory 1024Mi
+```
     
     
 
