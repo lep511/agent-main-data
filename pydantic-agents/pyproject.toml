@@ -1,0 +1,10 @@
+[project]
+name = "pydantic-agents"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic-ai>=0.4.7",
+    "pydantic-ai-slim[vertexai]>=0.4.7",
+]
