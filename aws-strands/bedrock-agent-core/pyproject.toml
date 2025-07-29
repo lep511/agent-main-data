@@ -1,0 +1,14 @@
+[project]
+name = "bedrock-agent-core"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aws-opentelemetry-distro==0.10.0",
+    "boto3>=1.39.16",
+    "botocore>=1.39.16",
+    "python-dotenv>=1.1.1",
+    "strands-agents-tools>=0.2.2",
+    "strands-agents[otel]>=1.1.0",
+]
