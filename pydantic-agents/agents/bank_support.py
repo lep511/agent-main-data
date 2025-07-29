@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from pydantic import BaseModel, Field
-from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.models.gemini import GeminiModelfrom pydantic import BaseModel, Field
+
 from pydantic_ai import Agent, RunContext, ModelRetry
 from datetime import date, datetime
 from typing import Optional

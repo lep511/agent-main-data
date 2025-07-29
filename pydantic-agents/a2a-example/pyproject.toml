@@ -4,4 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "fastapi>=0.116.1",
+    "pydantic-ai>=0.4.8",
+    "pydantic-ai-slim[a2a]>=0.4.8",
+]
