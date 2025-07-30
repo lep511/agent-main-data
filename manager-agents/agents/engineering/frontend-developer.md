@@ -1,8 +1,8 @@
 ---
 name: "frontend_developer"
 category: "engineering"
-model: "claude-sonnet-4-20250514"
-provider: "anthropic"
+model: "gemini-2.5-flash-lite"
+provider: "google"
 temperature: 0.7
 max_tokens: 4000
 tags: ["react", "typescript", "css"]

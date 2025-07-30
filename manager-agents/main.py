@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
+from orchestrator.orchestrator_core import Orchestrator
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
@@ -21,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
-DEFAULT_MODEL = os.getenv("DEFAULT_MODEL")
+
+# Default model and provider settings
+DEFAULT_MODEL = os.getenv("DEFAULT_MODEL", "gemini-2.5-pro")
+DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "google")
 
 @dataclass
 class AgentConfig:
@@ -30,7 +34,8 @@ class AgentConfig:
     category: str
     prompt: str
     file_path: str
-    model: str = DEFAULT_MODEL
+    model: str
+    provider: str
     temperature: float = 0.7
     max_tokens: int = 4000
 
@@ -46,7 +51,6 @@ class AgentMetadata(BaseModel):
     tags: Optional[List[str]] = None
     description: Optional[str] = None
     version: Optional[str] = None
-
 
 class AgentLoader:
     """Loads and manages PydanticAI agents from markdown files"""
@@ -75,6 +79,7 @@ class AgentLoader:
             prompt=prompt,
             file_path=str(file_path),
             model=metadata.model or DEFAULT_MODEL,
+            provider=metadata.provider or DEFAULT_PROVIDER,
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000
         )
@@ -93,10 +98,10 @@ class AgentLoader:
             data = yaml.safe_load(yaml_content)
             return AgentMetadata(**data)
         except ImportError:
-            print("Warning: PyYAML not installed. Frontmatter will be ignored.")
+            logger.warning("Warning: PyYAML not installed. Frontmatter will be ignored.")
             return AgentMetadata()
         except Exception as e:
-            print(f"Warning: Could not parse frontmatter: {e}")
+            logger.warning(f"Warning: Could not parse frontmatter: {e}")
             return AgentMetadata()
     
     def _extract_prompt_content(self, content: str) -> str:
@@ -128,21 +133,25 @@ class AgentLoader:
         config = self.parse_markdown_file(file_path)
         model = DEFAULT_MODEL
 
+        # logger.info(f"Loading agent: {config.name} from {file_path}")
+
+        # Define model settings
         settings = ModelSettings(
             temperature=config.temperature, 
             max_tokens=config.max_tokens
         )
 
+        # Determine model and provider
         if config.provider.lower() == "google":
-            if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") is "TRUE":
+            if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
                 model = GeminiModel(
-                    name=config.model,
+                    config.model,
                     provider='google-vertex',
                     settings=settings
                 )
             else:
                 model = GeminiModel(
-                    name=config.model,
+                    config.model,
                     provider='google-gla',
                     settings=settings
                 )
@@ -174,20 +183,20 @@ class AgentLoader:
         md_files = list(self.agents_directory.rglob("*.md"))
         
         if not md_files:
-            print(f"No .md files found in {self.agents_directory}")
+            logger.warning(f"No .md files found in {self.agents_directory}")
             return {}
         
-        print(f"Loading {len(md_files)} agent files...")
+        logger.info(f"Loading {len(md_files)} agent files...")
         
         for file_path in md_files:
             try:
                 agent = self.load_agent_from_file(file_path)
                 config = self.configs[list(self.configs.keys())[-1]]  # Get last added config
                 self.agents[config.name] = agent
-                print(f"✓ Loaded agent: {config.name} ({config.category})")
+                logger.info(f"✓ Loaded agent: {config.name} ({config.category})")
             except Exception as e:
-                print(f"✗ Failed to load {file_path}: {e}")
-        
+                logger.error(f"✗ Failed to load {file_path}: {e}")
+
         return self.agents
     
     def get_agent(self, name: str) -> Optional[Agent]:
@@ -241,19 +250,6 @@ class AgentManager:
         
         return results
     
-    def print_agent_info(self):
-        """Print information about all loaded agents"""
-        print(f"\n=== Loaded Agents ({len(self.agents)}) ===")
-        
-        categories = self.loader.get_categories()
-        for category in sorted(categories):
-            agents = self.loader.get_agents_by_category(category)
-            print(f"\n{category.upper()}:")
-            for name in sorted(agents.keys()):
-                config = self.loader.configs[name]
-                print(f"  • {name} ({config.model})")
-
-
 # Example markdown file format
 EXAMPLE_MARKDOWN = '''---
 name: "frontend_developer"
@@ -293,30 +289,46 @@ You provide practical solutions with working code examples and explain trade-off
 async def main():
     """Example usage of the agent loader"""
     
-    # Initialize the agent manager
+    # Step 1: Load agents using AgentManager
     manager = AgentManager("./agents")
-    
-    # Print loaded agents
-    manager.print_agent_info()
-    
-    # Run a specific agent
-    if "frontend_developer" in manager.agents:
-        response = await manager.run_agent(
-            "frontend_developer",
-            "How do I optimize React component re-renders?"
-        )
-        print(f"\nFrontend Developer Response:\n{response}")
-    
-    # Run all engineering agents on the same question
-    engineering_responses = await manager.run_category_consensus(
-        "engineering",
-        "What are the key considerations for building scalable applications?"
+
+    # Step 2: Create orchestrator with loaded agents
+    orchestrator = Orchestrator(
+        agents=manager.agents,
+        orchestrator_directory="./orchestrator"
     )
+
+    print(f"Loaded {len(orchestrator.agents)} agents:")
+    for agent_name in orchestrator.get_agent_list():
+        print(f"  - {agent_name}")
     
-    print("\n=== Engineering Team Consensus ===")
-    for agent_name, response in engineering_responses.items():
-        print(f"\n{agent_name}:")
-        print(response[:200] + "..." if len(response) > 200 else response)
+    print(f"\nAvailable workflows: {orchestrator.list_workflows()}")
+
+    # Step 3: Run all agents on a sample question
+    question = "How should we approach building a new e-commerce platform?"
+    participants = orchestrator.get_agent_list()
+
+    print(f"Participants: {participants}")
+
+        
+    # # Run a specific agent
+    # if "frontend_developer" in manager.agents:
+    #     response = await manager.run_agent(
+    #         "frontend_developer",
+    #         "How do I optimize React component re-renders?"
+    #     )
+    #     print(f"\nFrontend Developer Response:\n{response}")
+    
+    # # Run all engineering agents on the same question
+    # engineering_responses = await manager.run_category_consensus(
+    #     "engineering",
+    #     "What are the key considerations for building scalable applications?"
+    # )
+    
+    # print("\n=== Engineering Team Consensus ===")
+    # for agent_name, response in engineering_responses.items():
+    #     print(f"\n{agent_name}:")
+    #     print(response[:200] + "..." if len(response) > 200 else response)
 
 
 if __name__ == "__main__":
