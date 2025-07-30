@@ -141,31 +141,34 @@ class AgentLoader:
             max_tokens=config.max_tokens
         )
 
+        model = config.model
+        provider = config.provider
+
         # Determine model and provider
-        if config.provider.lower() == "google":
+        if provider.lower() == "google":
             if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
-                model = GeminiModel(
-                    config.model,
+                model_pydantic = GeminiModel(
+                    model,
                     provider='google-vertex',
                     settings=settings
                 )
             else:
-                model = GeminiModel(
-                    config.model,
+                model_pydantic = GeminiModel(
+                    model,
                     provider='google-gla',
                     settings=settings
                 )
-        elif config.provider.lower() == "anthropic":
-            model = AnthropicModel(
-                config.model,
+        elif provider.lower() == "anthropic":
+            model_pydantic = AnthropicModel(
+                model,
                 settings=settings
             )
         else:
-            raise ValueError(f"Unsupported provider: {config.provider}. Supported providers are 'google' and 'anthropic'.")
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'google' and 'anthropic'.")
 
         # Create PydanticAI agent
         agent = Agent(
-            model=model,
+            model=model_pydantic,
             system_prompt=config.prompt,
         )
         
@@ -310,7 +313,40 @@ async def main():
 
     print(f"Participants: {participants}")
 
-        
+    print("\n=== Orchestrator Agent First Step ===")
+    orchestrator_agent = orchestrator.orchestrator_agent
+
+    result1 = await orchestrator_agent.run(question)
+    print(result1.output)
+
+    print("\n=== Orchestrator Agent Clarification ===")
+
+    clarification = '''
+1.  **Budget:** We're aiming for something in the range of **$15,000 to $20,000** for the initial build. We have a bit of flexibility for essential features, but we want to be mindful of costs.
+
+2.  **Timeline:** Ideally, we'd love to launch the basic version of the platform within **3 months**. We understand that more complex features might push that out, but a quick go-to-market is important for us.
+
+3.  **Key Features:** Our absolute must-haves include:
+    * A robust **product catalog** with categories and subcategories.
+    * **User accounts** with order history and wishlists.
+    * Secure **payment gateway integration** (think Stripe and PayPal).
+    * Flexible **shipping options** with various rates.
+    * Basic **marketing tools** like discount codes and email sign-ups.
+    * An easy-to-use **admin panel** for managing products and orders.
+
+4.  **Technical Expertise:** Our internal team has some decent technical skills, but we're definitely **not looking for a fully managed solution** where we have to do everything ourselves. We'd prefer a platform that's fairly intuitive for our marketing and operations team to manage day-to-day. We'd be happy to have our developers handle custom integrations or more advanced maintenance if needed.
+
+5.  **Target Audience:** We're primarily targeting **small to medium-sized businesses (SMBs)**, specifically those in the craft and artisanal goods sector. Our ideal customer values unique, handmade items and appreciates a curated shopping experience.
+
+6.  **Product Type:** We'll be selling **physical goods**, mainly handmade jewelry, custom artwork, and unique home decor items. We might consider digital products down the line, but for now, it's all about physical inventory.
+''' 
+    print("\n=== Clarification Request ===")
+    result2 = await orchestrator_agent.run(
+        clarification,
+        message_history=result1.new_messages()
+    )
+    print(result2.output)
+
     # # Run a specific agent
     # if "frontend_developer" in manager.agents:
     #     response = await manager.run_agent(

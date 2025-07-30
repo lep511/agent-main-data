@@ -1,16 +1,17 @@
-import logging
-import re
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from collections import Counter
 from pydantic import BaseModel
-from pydantic_ai import Agent
+from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import KnownModelName
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.settings import ModelSettings
 from dotenv import load_dotenv
+import logging
+import os
+import re
 
 # Optional import for YAML frontmatter parsing
 try:
@@ -42,6 +43,7 @@ class Orchestrator:
         
         # Load orchestration workflows from directory
         self.workflows = self._load_workflows()
+        self.orchestrator_agent = self.get_workflow_main()
         
     def _load_workflows(self) -> Dict[str, Dict[str, Any]]:
         """Load orchestration workflows from markdown files"""
@@ -70,8 +72,11 @@ class Orchestrator:
         workflow_config = {
             'name': file_path.stem,
             'system_prompt': '',
-            'steps': [],
             'description': '',
+            'model': '',
+            'provider': '',
+            'temperature': 0.7,
+            'max_tokens': 2000,
             'parallel': False
         }
         
@@ -89,9 +94,11 @@ class Orchestrator:
         workflow_config['system_prompt'] = content
 
         return workflow_config
-    
-    async def execute_workflow(self, workflow_name: str, initial_message: str) -> Dict[str, Any]:
-        """Execute a predefined workflow"""
+
+    def get_workflow_main(self) -> Dict[str, Any]:
+        """Main entry point to get main workflow"""
+        workflow_name = "orchestrator_main"
+        
         if workflow_name not in self.workflows:
             raise ValueError(f"Workflow '{workflow_name}' not found")
         
@@ -99,34 +106,101 @@ class Orchestrator:
 
         context = {
             'workflow_name': workflow_name,
-            'initial_message': initial_message,
-            'system_prompt': workflow.get('system_prompt', ''),
+            'workflow': workflow,
             'agents': self.agents,
         }
 
-        results = {
-            'workflow_name': workflow_name,
-            'execution_type': 'sequential',
-            'steps': [],
-            'final_result': None
-        }
-                
-        for step in workflow.get('steps', []):
-            step_result = await self._execute_workflow_step(step, context)
-            results['steps'].append(step_result)
-            
-            # Update message for next step if specified
-            if step_result.get('output'):
-                current_message = step_result['output']
-        
-        results['final_result'] = current_message
-        return results             
+        # Run the workflow
+        result = self._get_workflow_step(workflow_name, context)
+        return result["agent"]
 
-    async def _execute_workflow_step(self, step: str, context: Dict[str, Any]) -> Dict[str, Any]:
+    # async def run_workflow(self, workflow_name: str, initial_message: str) -> Dict[str, Any]:
+    #     """Execute a predefined workflow"""
+    #     if workflow_name not in self.workflows:
+    #         raise ValueError(f"Workflow '{workflow_name}' not found")
+        
+    #     workflow = self.workflows[workflow_name]
+
+    #     context = {
+    #         'workflow_name': workflow_name,
+    #         'workflow': workflow,
+    #         'initial_message': initial_message,
+    #         'agents': self.agents,
+    #     }
+
+    #     results = {
+    #         'workflow_name': workflow_name,
+    #         'execution_type': 'sequential',
+    #         'steps': [],
+    #         'final_result': None
+    #     }
+        
+    #     # Check if the workflow is parallel or sequential
+    #     if workflow.get('parallel', False):
+    #         return await self.parallel_execution(workflow.get('agents', []), initial_message)
+    #     else:
+    #         return await self.run_workflow(workflow_name, initial_message)
+                
+    #     for step in workflow.get('steps', []):
+    #         step_result = await self._execute_workflow_step(step, context)
+    #         results['steps'].append(step_result)
+            
+    #         # Update message for next step if specified
+    #         if step_result.get('output'):
+    #             current_message = step_result['output']
+        
+    #     results['final_result'] = current_message
+    #     return results             
+
+    def _get_workflow_step(self, step: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a single step in the workflow"""
         logger.info(f"Executing workflow step: {step}")
+        workflow = context['workflow']
+        workflow_name = context.get('workflow_name', 'no_name')
 
-        return {"step": step}
+        # Define model settings
+        settings = ModelSettings(
+            temperature=workflow.get('temperature', 0.7), 
+            max_tokens=workflow.get('max_tokens', 2000)
+        )
+
+        model = workflow.get('model', 'gemini-2.5-flash-lite')
+        provider = workflow.get('provider', 'google')
+        system_prompt = workflow.get('system_prompt', '')
+
+        # Determine model and provider
+        if provider.lower() == "google":
+            if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
+                model_pydantic = GeminiModel(
+                    model,
+                    provider='google-vertex',
+                    settings=settings
+                )
+            else:
+                model_pydantic = GeminiModel(
+                    model,
+                    provider='google-gla',
+                    settings=settings
+                )
+        elif provider.lower() == "anthropic":
+            model_pydantic = AnthropicModel(
+                model,
+                settings=settings
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'google' and 'anthropic'.")
+
+        # Create PydanticAI agent
+        agent = Agent(
+            model=model_pydantic,
+            system_prompt=system_prompt,
+        )
+
+        return {
+            'step': step,
+            'agent': agent,
+            'execution_type': 'sequential'
+        }
 
     async def parallel_execution(self, agent_configs: List[Dict[str, Any]], message: str) -> Dict[str, Any]:
         """Execute multiple agents in parallel"""

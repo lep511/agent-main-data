@@ -1,7 +1,10 @@
 ---
 name: "orchestrator_main"
-steps: ["orchestrator"]
 description: "Orchestrator for managing and delegating tasks to specialized agents based on user requests."
+model: "gemini-2.5-flash-lite"
+provider: "google"
+temperature: 0.4
+max_tokens: 2000
 parallel: false
 version: "1.0"
 ---
