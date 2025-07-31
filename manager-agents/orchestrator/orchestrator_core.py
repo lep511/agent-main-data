@@ -2,7 +2,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from collections import Counter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import KnownModelName
 from pydantic_ai.models.gemini import GeminiModel
@@ -26,6 +26,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+class AgentCategory(BaseModel):
+    name: str = Field(..., description="The human-friendly category title")
+    specializations: List[str] = Field(
+        ..., description="List of agent specialization slugs"
+    )
+
+
+class AgentsOverview(BaseModel):
+    categories: List[AgentCategory]
+
 class Orchestrator:
     """Orchestrator for managing multiple agents"""
     
@@ -43,7 +53,6 @@ class Orchestrator:
         
         # Load orchestration workflows from directory
         self.workflows = self._load_workflows()
-        self.orchestrator_agent = self.get_workflow_main()
         
     def _load_workflows(self) -> Dict[str, Dict[str, Any]]:
         """Load orchestration workflows from markdown files"""
@@ -95,68 +104,55 @@ class Orchestrator:
 
         return workflow_config
 
-    def get_workflow_main(self) -> Dict[str, Any]:
+    def get_routing_agent(self, available_agents: str, query_type: str) -> Agent:
+        """Get the routing agent for query routing"""
+        workflow_name = "routing"
+
+        if workflow_name not in self.workflows:
+            raise ValueError(f"Workflow '{workflow_name}' not found")
+
+        routing_workflow = self.workflows[workflow_name]
+        
+        context = {
+            'workflow_name': "routing",
+            'workflow': routing_workflow,
+            'agents': self.agents,
+            'placeholders': {
+                'available_agents': available_agents,
+                'query_type': query_type
+            }
+        }
+
+        # Run the routing workflow
+        result = self._get_workflow_step("routing", context)
+        return result["agent"]
+
+    def get_orchestrator_agent(self) -> Agent:
         """Main entry point to get main workflow"""
         workflow_name = "orchestrator_main"
         
         if workflow_name not in self.workflows:
             raise ValueError(f"Workflow '{workflow_name}' not found")
         
-        workflow = self.workflows[workflow_name]
+        main_workflow = self.workflows[workflow_name]
 
         context = {
             'workflow_name': workflow_name,
-            'workflow': workflow,
+            'workflow': main_workflow,
             'agents': self.agents,
+            'placeholders': []
         }
 
         # Run the workflow
         result = self._get_workflow_step(workflow_name, context)
         return result["agent"]
 
-    # async def run_workflow(self, workflow_name: str, initial_message: str) -> Dict[str, Any]:
-    #     """Execute a predefined workflow"""
-    #     if workflow_name not in self.workflows:
-    #         raise ValueError(f"Workflow '{workflow_name}' not found")
-        
-    #     workflow = self.workflows[workflow_name]
-
-    #     context = {
-    #         'workflow_name': workflow_name,
-    #         'workflow': workflow,
-    #         'initial_message': initial_message,
-    #         'agents': self.agents,
-    #     }
-
-    #     results = {
-    #         'workflow_name': workflow_name,
-    #         'execution_type': 'sequential',
-    #         'steps': [],
-    #         'final_result': None
-    #     }
-        
-    #     # Check if the workflow is parallel or sequential
-    #     if workflow.get('parallel', False):
-    #         return await self.parallel_execution(workflow.get('agents', []), initial_message)
-    #     else:
-    #         return await self.run_workflow(workflow_name, initial_message)
-                
-    #     for step in workflow.get('steps', []):
-    #         step_result = await self._execute_workflow_step(step, context)
-    #         results['steps'].append(step_result)
             
-    #         # Update message for next step if specified
-    #         if step_result.get('output'):
-    #             current_message = step_result['output']
-        
-    #     results['final_result'] = current_message
-    #     return results             
 
     def _get_workflow_step(self, step: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Execute a single step in the workflow"""
         logger.info(f"Executing workflow step: {step}")
         workflow = context['workflow']
-        workflow_name = context.get('workflow_name', 'no_name')
 
         # Define model settings
         settings = ModelSettings(
@@ -166,7 +162,18 @@ class Orchestrator:
 
         model = workflow.get('model', 'gemini-2.5-flash-lite')
         provider = workflow.get('provider', 'google')
+
         system_prompt = workflow.get('system_prompt', '')
+
+        if not system_prompt:
+            raise ValueError("System prompt is required for workflow execution")
+
+        # Check if context have placeholders
+        if 'placeholders' in context:
+            for key, value in context['placeholders'].items():
+                system_prompt = system_prompt.replace(f"{{{{{key}}}}}", str(value))
+        
+        logger.info(f"System prompt: {system_prompt}")
 
         # Determine model and provider
         if provider.lower() == "google":

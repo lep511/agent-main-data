@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from orchestrator.orchestrator_core import Orchestrator
+from orchestrator.utils import collect_agent_specializations, get_categories_agents, get_categories
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
@@ -311,15 +312,23 @@ async def main():
     question = "How should we approach building a new e-commerce platform?"
     participants = orchestrator.get_agent_list()
 
-    print(f"Participants: {participants}")
+    root = Path("./agents")
+    overview = collect_agent_specializations(root)
+    available_agents = get_categories_agents(overview)
+    query_type = get_categories(overview)
 
-    print("\n=== Orchestrator Agent First Step ===")
-    orchestrator_agent = orchestrator.orchestrator_agent
+    routing_agent = orchestrator.get_routing_agent(available_agents, query_type)
 
-    result1 = await orchestrator_agent.run(question)
-    print(result1.output)
 
-    print("\n=== Orchestrator Agent Clarification ===")
+    # print(f"Participants: {participants}")
+
+    # print("\n=== Orchestrator Agent First Step ===")
+    # orchestrator_agent = orchestrator.orchestrator_agent
+
+    # result1 = await orchestrator_agent.run(question)
+    # print(result1.output)
+
+    # print("\n=== Orchestrator Agent Clarification ===")
 
     clarification = '''
 1.  **Budget:** We're aiming for something in the range of **$15,000 to $20,000** for the initial build. We have a bit of flexibility for essential features, but we want to be mindful of costs.
@@ -340,12 +349,12 @@ async def main():
 
 6.  **Product Type:** We'll be selling **physical goods**, mainly handmade jewelry, custom artwork, and unique home decor items. We might consider digital products down the line, but for now, it's all about physical inventory.
 ''' 
-    print("\n=== Clarification Request ===")
-    result2 = await orchestrator_agent.run(
-        clarification,
-        message_history=result1.new_messages()
-    )
-    print(result2.output)
+    # print("\n=== Clarification Request ===")
+    # result2 = await orchestrator_agent.run(
+    #     clarification,
+    #     message_history=result1.new_messages()
+    # )
+    # print(result2.output)
 
     # # Run a specific agent
     # if "frontend_developer" in manager.agents:
