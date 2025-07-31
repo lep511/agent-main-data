@@ -236,13 +236,6 @@ class AgentManager:
         if not categories:
             return "No agent categories available."
         return "\n".join(f"- {cat}" for cat in categories)
-
-    def get_categories_formatted(self) -> str:
-        """Generate a string representing the categories of agents based on their categories."""
-        categories = self.loader.get_categories()
-        if not categories:
-            return "No agent categories available."
-        return "|".join(cat.lower() for cat in categories)
     
     def get_full_categories(self) -> str:
         """Get a formatted string of available agent categories and their specializations"""
@@ -333,25 +326,39 @@ async def main():
 
     print("\n=== Routing Agent ===")
     available_categories = manager.get_full_categories()
-    query_type = manager.get_categories_formatted()
 
     print(f"\nAvailable categories:\n{available_categories}")
     # print(f"\nAvailable categories formatted: {query_type}")
 
-    question = "How should we approach building a new e-commerce platform and publish in Instagram?"
+    # question = "How should we approach building a new e-commerce platform and publish in Instagram?"
     # question = "What UX research methods should we use to validate our new feature ideas?"
-    # question = "Can you analyze our user feedback and identify the top pain points in our app?"
+    question = "Can you analyze our user feedback and identify the top pain points in our app?"
     # question = "How should we structure our database schema for a real-time chat application?"
     print(f"Question: {question}")
 
-    routing_agent = orchestrator.get_routing_agent(available_categories, query_type)
+    routing_agent = orchestrator.get_routing_agent(available_categories)
 
-    result_routing = await routing_agent.run(
-        question,
-        output_type=RoutingResult,
-    )
-
-    print(f"\nRouting Agent Result: {result_routing.output}")
+    try:
+        result_routing = await routing_agent.run(
+            question,
+            output_type=RoutingResult,
+        )
+    except Exception as e:
+        try:
+            result = await routing_agent.run(
+                question,
+            )
+            result_string = result.output
+            result_string = result_string.replace("```json", "")
+            result_string = result_string.replace("```", "")
+            result_routing = RoutingResult.model_validate_json(result_string.strip())
+        except Exception as e:
+            logger.error(f"Error running routing agent without output_type: {e}")
+            return
+        finally:
+            logger.error(f"Error running routing agent with output_type.")
+            
+    print(f"\nRouting Agent Result: {result_routing}")
 
     # print("\n=== Orchestrator Agent First Step ===")
     # orchestrator_agent = orchestrator.orchestrator_agent

@@ -9,6 +9,7 @@ from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.settings import ModelSettings
 from dotenv import load_dotenv
+from typing_extensions import TypedDict
 import logging
 import os
 import re
@@ -36,10 +37,9 @@ class AgentCategory(BaseModel):
 class AgentsOverview(BaseModel):
     categories: List[AgentCategory]
 
-class RoutingResult(BaseModel):
+class RoutingResult(TypedDict, total=False):
     query_type: str
-    primary_domain: str
-    secondary_domains: List[str] = []
+    categories: List[str] = []
     technical_keywords: List[str] = []
     intent_keywords: List[str] = []
     requires_multiple_expertise: bool
@@ -112,7 +112,7 @@ class Orchestrator:
 
         return workflow_config
 
-    def get_routing_agent(self, available_categories: str, query_type: str) -> Agent:
+    def get_routing_agent(self, available_categories: str) -> Agent:
         """Get the routing agent for query routing"""
         workflow_name = "routing"
 
@@ -126,8 +126,7 @@ class Orchestrator:
             'workflow': routing_workflow,
             'agents': self.agents,
             'placeholders': {
-                'available_categories': available_categories,
-                'query_type': query_type
+                'available_categories': available_categories
             }
         }
 
