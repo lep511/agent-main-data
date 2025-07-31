@@ -1,6 +1,5 @@
 ---
 name: "ux_research_specialist"
-category: "research"
 model: "gemini-2.5-flash-lite"
 provider: "google"
 temperature: 0.7

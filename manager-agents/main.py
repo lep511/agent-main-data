@@ -4,8 +4,7 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from orchestrator.orchestrator_core import Orchestrator
-from orchestrator.utils import collect_agent_specializations, get_categories_agents, get_categories
+from orchestrator.orchestrator_core import Orchestrator, RoutingResult
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
@@ -32,6 +31,7 @@ DEFAULT_PROVIDER = os.getenv("DEFAULT_PROVIDER", "google")
 class AgentConfig:
     """Configuration for an agent loaded from markdown"""
     name: str
+    description: str
     category: str
     prompt: str
     file_path: str
@@ -43,14 +43,13 @@ class AgentConfig:
 
 class AgentMetadata(BaseModel):
     """Pydantic model for agent metadata parsing"""
-    name: Optional[str] = None
-    category: Optional[str] = None
+    name: str
+    description: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
-    description: Optional[str] = None
     version: Optional[str] = None
 
 class AgentLoader:
@@ -76,7 +75,8 @@ class AgentLoader:
         
         return AgentConfig(
             name=metadata.name or agent_name,
-            category=metadata.category or category,
+            description=metadata.description or "No description available",
+            category=category,
             prompt=prompt,
             file_path=str(file_path),
             model=metadata.model or DEFAULT_MODEL,
@@ -214,8 +214,7 @@ class AgentLoader:
     def get_agents_by_category(self, category: str) -> Dict[str, Agent]:
         """Get all agents in a specific category"""
         return {
-            name: agent for name, agent in self.agents.items()
-            if self.configs[name].category == category
+            name: agent for name, agent in self.agents.items() if self.configs[name].category.lower() == category.lower()
         }
     
     def get_categories(self) -> List[str]:
@@ -230,6 +229,31 @@ class AgentManager:
     def __init__(self, agents_directory: str = "./agents"):
         self.loader = AgentLoader(agents_directory)
         self.agents = self.loader.load_all_agents()
+
+    def get_categories(self) -> str:
+        """Get a formatted string of available agent categories"""
+        categories = self.loader.get_categories()
+        if not categories:
+            return "No agent categories available."
+        return "\n".join(f"- {cat}" for cat in categories)
+
+    def get_categories_formatted(self) -> str:
+        """Generate a string representing the categories of agents based on their categories."""
+        categories = self.loader.get_categories()
+        if not categories:
+            return "No agent categories available."
+        return "|".join(cat.lower() for cat in categories)
+    
+    def get_full_categories(self) -> str:
+        """Get a formatted string of available agent categories and their specializations"""
+        lines = []
+        for cat in self.loader.get_categories():
+            agents_in_category = self.loader.get_agents_by_category(cat)
+            lines.append(f"\n### {cat.upper()}")
+            for name, agent in agents_in_category.items():
+                config = self.loader.configs[name]
+                lines.append(f"- **{name}**: {config.description or 'No description available'}")
+        return "\n".join(lines)
     
     async def run_agent(self, agent_name: str, message: str, **kwargs) -> str:
         """Run a specific agent with a message"""
@@ -257,7 +281,6 @@ class AgentManager:
 # Example markdown file format
 EXAMPLE_MARKDOWN = '''---
 name: "frontend_developer"
-category: "engineering"
 model: "claude-sonnet-4-20250514"
 temperature: 0.7
 max_tokens: 4000
@@ -294,33 +317,41 @@ async def main():
     """Example usage of the agent loader"""
     
     # Step 1: Load agents using AgentManager
-    manager = AgentManager("./agents")
+    root = Path("./agents")
+    manager = AgentManager(root)
 
     # Step 2: Create orchestrator with loaded agents
     orchestrator = Orchestrator(
         agents=manager.agents,
         orchestrator_directory="./orchestrator"
     )
-
-    print(f"Loaded {len(orchestrator.agents)} agents:")
-    for agent_name in orchestrator.get_agent_list():
-        print(f"  - {agent_name}")
     
     print(f"\nAvailable workflows: {orchestrator.list_workflows()}")
 
-    # Step 3: Run all agents on a sample question
-    question = "How should we approach building a new e-commerce platform?"
     participants = orchestrator.get_agent_list()
+    print(f"Participants: {participants}")
 
-    root = Path("./agents")
-    overview = collect_agent_specializations(root)
-    available_agents = get_categories_agents(overview)
-    query_type = get_categories(overview)
+    print("\n=== Routing Agent ===")
+    available_categories = manager.get_full_categories()
+    query_type = manager.get_categories_formatted()
 
-    routing_agent = orchestrator.get_routing_agent(available_agents, query_type)
+    print(f"\nAvailable categories:\n{available_categories}")
+    # print(f"\nAvailable categories formatted: {query_type}")
 
+    question = "How should we approach building a new e-commerce platform and publish in Instagram?"
+    # question = "What UX research methods should we use to validate our new feature ideas?"
+    # question = "Can you analyze our user feedback and identify the top pain points in our app?"
+    # question = "How should we structure our database schema for a real-time chat application?"
+    print(f"Question: {question}")
 
-    # print(f"Participants: {participants}")
+    routing_agent = orchestrator.get_routing_agent(available_categories, query_type)
+
+    result_routing = await routing_agent.run(
+        question,
+        output_type=RoutingResult,
+    )
+
+    print(f"\nRouting Agent Result: {result_routing.output}")
 
     # print("\n=== Orchestrator Agent First Step ===")
     # orchestrator_agent = orchestrator.orchestrator_agent

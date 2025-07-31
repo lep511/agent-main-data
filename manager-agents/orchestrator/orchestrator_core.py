@@ -36,6 +36,14 @@ class AgentCategory(BaseModel):
 class AgentsOverview(BaseModel):
     categories: List[AgentCategory]
 
+class RoutingResult(BaseModel):
+    query_type: str
+    primary_domain: str
+    secondary_domains: List[str] = []
+    technical_keywords: List[str] = []
+    intent_keywords: List[str] = []
+    requires_multiple_expertise: bool
+
 class Orchestrator:
     """Orchestrator for managing multiple agents"""
     
@@ -104,7 +112,7 @@ class Orchestrator:
 
         return workflow_config
 
-    def get_routing_agent(self, available_agents: str, query_type: str) -> Agent:
+    def get_routing_agent(self, available_categories: str, query_type: str) -> Agent:
         """Get the routing agent for query routing"""
         workflow_name = "routing"
 
@@ -118,7 +126,7 @@ class Orchestrator:
             'workflow': routing_workflow,
             'agents': self.agents,
             'placeholders': {
-                'available_agents': available_agents,
+                'available_categories': available_categories,
                 'query_type': query_type
             }
         }
@@ -163,9 +171,9 @@ class Orchestrator:
         model = workflow.get('model', 'gemini-2.5-flash-lite')
         provider = workflow.get('provider', 'google')
 
-        system_prompt = workflow.get('system_prompt', '')
-
-        if not system_prompt:
+        if 'system_prompt' in workflow:
+            system_prompt = workflow['system_prompt']
+        else:
             raise ValueError("System prompt is required for workflow execution")
 
         # Check if context have placeholders
@@ -173,8 +181,6 @@ class Orchestrator:
             for key, value in context['placeholders'].items():
                 system_prompt = system_prompt.replace(f"{{{{{key}}}}}", str(value))
         
-        logger.info(f"System prompt: {system_prompt}")
-
         # Determine model and provider
         if provider.lower() == "google":
             if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":

@@ -1,12 +1,11 @@
 ---
 name: "ui_designer"
-category: "design"
+description: "Expert UI designer specializing in visual design and user interface creation"
 model: "gemini-2.5-flash-lite"
 provider: "google"
 temperature: 0.7
 max_tokens: 4000
 tags: ["ui", "ux", "design-systems", "figma", "accessibility"]
-description: "Expert UI designer specializing in visual design and user interface creation"
 version: "1.0"
 ---
 
