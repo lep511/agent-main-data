@@ -387,8 +387,8 @@ async def main():
     # question = "How should we structure our database schema for a real-time chat application?"
     # question = "What is the exchange rate from American dollar to Argentine peso?"
     # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
-    # question = "What is the weather forecast in Tokyo, Japan for the next days?"
-    question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/supero-una-infancia-dura-se-convirtio-en-un-visionario-de-la-ia-y-hoy-es-una-de-las-personas-mas-ricas-del-mundo"
+    question = "What is the weather forecast in Tokyo, Japan for the next days?"
+    # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     print(f"Question: {question}")
    
     result_output = await get_routing(question, available_categories, orchestator)

@@ -9,6 +9,7 @@ from tools.datetime import (
     tool_get_current_datetime_utc,
     tool_get_current_datetime_iso
 )
+from tools.weather import tool_get_weather
 import logging
 
 # Configure logging
@@ -30,6 +31,7 @@ def get_tool_registry() -> Dict[str, Callable]:
         Get the exchange rate between two currencies.
         """
         result = tool_get_exchange_rate(base, target)
+        logger.debug(f"Exchange rate from {base} to {target}: {result}")
         return result
 
     # --------------------- Serper search google ------------------------------
@@ -44,6 +46,7 @@ def get_tool_registry() -> Dict[str, Callable]:
             dict: JSON response from the API, or None if an error occurred
         """
         result = tool_serper_search_google(query, **kwargs)
+        logger.debug(f"Serper search result for query '{query}': {result}")
         return result
 
     # --------------------- Get current datetime ------------------------------
@@ -55,6 +58,7 @@ def get_tool_registry() -> Dict[str, Callable]:
             str: Current datetime in ISO format (YYYY-MM-DD HH:MM:SS)
         """
         result = tool_get_current_datetime()
+        logger.debug(f"Current datetime: {result}")
         return result
 
     # --------------------- Get current datetime utc ---------------------------
@@ -66,6 +70,7 @@ def get_tool_registry() -> Dict[str, Callable]:
             str: Current UTC datetime in ISO format
         """
         result = tool_get_current_datetime_utc()
+        logger.debug(f"Current UTC datetime: {result}")
         return result
     
     # --------------------- Get current datetime iso ---------------------------
@@ -77,6 +82,7 @@ def get_tool_registry() -> Dict[str, Callable]:
             str: Current datetime in ISO format with timezone info
         """
         result = tool_get_current_datetime_iso()
+        logger.debug(f"Current datetime in ISO format: {result}")
         return result
 
     # --------------------------- Scrape search ---------------------------------
@@ -91,7 +97,20 @@ def get_tool_registry() -> Dict[str, Callable]:
             dict: JSON response from the API, or None if an error occurred
         """
         result = tool_scrape_search(url)
-        logger.info(f"Scraped URL: {url}")
+        logger.debug(f"Scraped URL: {url}")
+        return result
+
+    def get_weather(location: str) -> Optional[dict]:
+        """
+        Get the current weather for a specified location.
+
+        Args:
+            location (str): The location to get the weather for
+
+        Returns:
+            dict: JSON response containing weather information, or None if an error occurred
+        """
+        result = tool_get_weather(location)
         return result
     # ------------------------------ END -----------------------------------------
 
@@ -101,7 +120,8 @@ def get_tool_registry() -> Dict[str, Callable]:
         "get_current_datetime": get_current_datetime,
         "get_current_datetime_utc": get_current_datetime_utc,
         "get_current_datetime_iso": get_current_datetime_iso,
-        "scrape_search": scrape_search
+        "scrape_search": scrape_search,
+        "get_weather": get_weather
     }
 
 
