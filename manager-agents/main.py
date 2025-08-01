@@ -387,7 +387,7 @@ async def main():
     # question = "How should we structure our database schema for a real-time chat application?"
     # question = "What is the exchange rate from American dollar to Argentine peso?"
     # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
-    question = "What is the weather forecast in Tokyo, Japan for the next days?"
+    question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     print(f"Question: {question}")
    

@@ -2,14 +2,14 @@ from typing import Dict, Callable, List, Optional
 from tools.finance import tool_get_exchange_rate
 from tools.search import (
     tool_serper_search_google,
-    tool_scrape_search
+    tool_scrape_search,
+    tool_get_weather_forecast
 )
 from tools.datetime import (
     tool_get_current_datetime,
     tool_get_current_datetime_utc,
     tool_get_current_datetime_iso
 )
-from tools.weather import tool_get_weather
 import logging
 
 # Configure logging
@@ -110,7 +110,8 @@ def get_tool_registry() -> Dict[str, Callable]:
         Returns:
             dict: JSON response containing weather information, or None if an error occurred
         """
-        result = tool_get_weather(location)
+        result = tool_get_weather_forecast(location)
+        logger.debug(f"Weather for {location}: {result}")
         return result
     # ------------------------------ END -----------------------------------------
 
