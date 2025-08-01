@@ -1,7 +1,7 @@
 ---
 name: "ui_designer"
 description: "Expert UI designer specializing in visual design and user interface creation"
-model: "gemini-2.5-flash-lite"
+model: "gemini-2.5-pro"
 provider: "google"
 temperature: 0.7
 max_tokens: 4000

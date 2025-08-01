@@ -1,11 +1,11 @@
 ---
 name: "frontend_developer"
-model: "gemini-2.5-flash-lite"
+model: "gemini-2.5-pro"
 provider: "google"
 temperature: 0.7
 max_tokens: 4000
 tags: ["react", "typescript", "css"]
-description: "Expert frontend developer specializing in modern web technologies"
+description: "A seasoned frontend developer with mastery in React, Vue, Angular, and TypeScript." 
 version: "1.0"
 ---
 

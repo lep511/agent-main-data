@@ -40,6 +40,7 @@ class AgentsOverview(BaseModel):
 class RoutingResult(TypedDict, total=False):
     query_type: str
     categories: List[str] = []
+    specialists: List[str] = []
     technical_keywords: List[str] = []
     intent_keywords: List[str] = []
     requires_multiple_expertise: bool

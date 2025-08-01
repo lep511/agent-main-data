@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
 from orchestrator.orchestrator_core import Orchestrator, RoutingResult
+from tools.manager import resolve_tools_from_names
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
@@ -35,11 +36,11 @@ class AgentConfig:
     category: str
     prompt: str
     file_path: str
-    model: str
-    provider: str
-    temperature: float = 0.7
-    max_tokens: int = 4000
-
+    model: Optional[str]
+    provider: Optional[str]
+    temperature: Optional[float] = 0.7
+    max_tokens: Optional[int] = 4000
+    tools: Optional[List[str]] = None
 
 class AgentMetadata(BaseModel):
     """Pydantic model for agent metadata parsing"""
@@ -50,6 +51,7 @@ class AgentMetadata(BaseModel):
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
+    tools: Optional[List[str]] = None
     version: Optional[str] = None
 
 class AgentLoader:
@@ -82,7 +84,8 @@ class AgentLoader:
             model=metadata.model or DEFAULT_MODEL,
             provider=metadata.provider or DEFAULT_PROVIDER,
             temperature=metadata.temperature or 0.7,
-            max_tokens=metadata.max_tokens or 4000
+            max_tokens=metadata.max_tokens or 4000,
+            tools=metadata.tools or []
         )
     
     def _extract_frontmatter(self, content: str) -> AgentMetadata:
@@ -167,10 +170,16 @@ class AgentLoader:
         else:
             raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'google' and 'anthropic'.")
 
+        if config.tools:
+            tools = resolve_tools_from_names(config.tools)
+        else:
+            tools = []
+
         # Create PydanticAI agent
         agent = Agent(
             model=model_pydantic,
             system_prompt=config.prompt,
+            tools=tools
         )
         
         # Store configuration for reference
@@ -270,40 +279,82 @@ class AgentManager:
                 results[name] = f"Error: {e}"
         
         return results
+
+async def get_routing(question: str, available_categories: str, orchestrator: Orchestrator) -> Optional[RoutingResult]:
+    """
+    Get the routing result for a given question.
     
-# Example markdown file format
-EXAMPLE_MARKDOWN = '''---
-name: "frontend_developer"
-model: "claude-sonnet-4-20250514"
-temperature: 0.7
-max_tokens: 4000
-tags: ["react", "typescript", "css"]
-description: "Expert frontend developer specializing in modern web technologies"
----
+    Args:
+        question: The question to route
+        available_categories: Available categories for routing
+        orchestrator: The orchestrator instance
+        
+    Returns:
+        RoutingResult if successful, None if failed
+        
+    Raises:
+        ValueError: If required parameters are invalid
+    """
+    if not question or not question.strip():
+        raise ValueError("Question cannot be empty")
+    
+    if not available_categories:
+        raise ValueError("Available categories cannot be empty")
+    
+    routing_agent = orchestrator.get_routing_agent(available_categories)
+    
+    # First attempt: Try with structured output
+    try:
+        logger.debug(f"Attempting routing with structured output for question: {question[:100]}...")
+        result_routing = await routing_agent.run(
+            question,
+            output_type=RoutingResult,
+        )
+        logger.info("Successfully obtained routing result with structured output")
+        return result_routing.output
+        
+    except Exception as e:
+        logger.warning(f"Structured output routing failed: {e}")
+        
+        # Second attempt: Fallback to string parsing
+        try:
+            logger.debug("Attempting fallback routing with string parsing")
+            result = await routing_agent.run(question)
+            
+            if not hasattr(result, 'output') or not result.output:
+                logger.error("Routing agent returned empty or invalid result")
+                return None
+            
+            # Clean and parse the result
+            cleaned_result = _clean_json_response(result.output)
+            result_routing = RoutingResult.model_validate_json(cleaned_result)
+            
+            logger.info("Successfully obtained routing result with fallback method")
+            return result_routing
+            
+        except Exception as fallback_error:
+            logger.error(f"Fallback routing also failed: {fallback_error}")
+            return None
 
-# Frontend Developer Agent
-
-You are an expert frontend developer with deep expertise in modern web technologies. You specialize in React, Vue, Angular, TypeScript, CSS/SASS, responsive design, and performance optimization. 
-
-You write clean, accessible, and maintainable code while staying current with web standards and best practices. When solving problems, you consider user experience, browser compatibility, and performance implications. 
-
-You provide practical solutions with working code examples and explain trade-offs clearly.
-
-## Key Capabilities
-- Modern JavaScript/TypeScript development
-- React, Vue, Angular frameworks
-- Responsive design and CSS architecture
-- Performance optimization
-- Accessibility best practices
-- Testing strategies
-
-## Communication Style
-- Provide working code examples
-- Explain technical decisions and trade-offs
-- Consider performance and user experience
-- Stay current with web standards
-'''
-
+def _clean_json_response(response_text: str) -> str:
+    """
+    Clean JSON response by removing markdown code blocks and extra whitespace.
+    
+    Args:
+        response_text: Raw response text that may contain JSON
+        
+    Returns:
+        Cleaned JSON string
+    """
+    if not response_text:
+        return ""
+    
+    # Remove markdown code blocks
+    cleaned = re.sub(r'```(?:json)?\s*', '', response_text)
+    cleaned = re.sub(r'```\s*', '', cleaned)
+    
+    # Remove extra whitespace
+    return cleaned.strip()
 
 # Usage example
 async def main():
@@ -314,14 +365,14 @@ async def main():
     manager = AgentManager(root)
 
     # Step 2: Create orchestrator with loaded agents
-    orchestrator = Orchestrator(
+    orchestator = Orchestrator(
         agents=manager.agents,
         orchestrator_directory="./orchestrator"
     )
     
-    print(f"\nAvailable workflows: {orchestrator.list_workflows()}")
+    print(f"\nAvailable workflows: {orchestator.list_workflows()}")
 
-    participants = orchestrator.get_agent_list()
+    participants = orchestator.get_agent_list()
     print(f"Participants: {participants}")
 
     print("\n=== Routing Agent ===")
@@ -332,33 +383,20 @@ async def main():
 
     # question = "How should we approach building a new e-commerce platform and publish in Instagram?"
     # question = "What UX research methods should we use to validate our new feature ideas?"
-    question = "Can you analyze our user feedback and identify the top pain points in our app?"
+    # question = "Can you analyze our user feedback and identify the top pain points in our app?"
     # question = "How should we structure our database schema for a real-time chat application?"
+    # question = "What is the exchange rate from American dollar to Argentine peso?"
+    # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
+    # question = "What is the weather forecast in Tokyo, Japan for the next days?"
+    question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/supero-una-infancia-dura-se-convirtio-en-un-visionario-de-la-ia-y-hoy-es-una-de-las-personas-mas-ricas-del-mundo"
     print(f"Question: {question}")
+   
+    result_output = await get_routing(question, available_categories, orchestator)
+    print(result_output)
+    specialists = result_output['specialists'][0]
 
-    routing_agent = orchestrator.get_routing_agent(available_categories)
-
-    try:
-        result_routing = await routing_agent.run(
-            question,
-            output_type=RoutingResult,
-        )
-    except Exception as e:
-        try:
-            result = await routing_agent.run(
-                question,
-            )
-            result_string = result.output
-            result_string = result_string.replace("```json", "")
-            result_string = result_string.replace("```", "")
-            result_routing = RoutingResult.model_validate_json(result_string.strip())
-        except Exception as e:
-            logger.error(f"Error running routing agent without output_type: {e}")
-            return
-        finally:
-            logger.error(f"Error running routing agent with output_type.")
-            
-    print(f"\nRouting Agent Result: {result_routing}")
+    response = await manager.run_agent(specialists, question)
+    print(f"\n{specialists} Response:\n{response}")
 
     # print("\n=== Orchestrator Agent First Step ===")
     # orchestrator_agent = orchestrator.orchestrator_agent
