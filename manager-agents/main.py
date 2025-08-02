@@ -10,6 +10,8 @@ from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
 from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.settings import ModelSettings
 from dotenv import load_dotenv
@@ -38,6 +40,7 @@ class AgentConfig:
     file_path: str
     model: Optional[str]
     provider: Optional[str]
+    base_url: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
     tools: Optional[List[str]] = None
@@ -48,6 +51,7 @@ class AgentMetadata(BaseModel):
     description: Optional[str] = None
     model: Optional[str] = None
     provider: Optional[str] = None
+    base_url: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -83,6 +87,7 @@ class AgentLoader:
             file_path=str(file_path),
             model=metadata.model or DEFAULT_MODEL,
             provider=metadata.provider or DEFAULT_PROVIDER,
+            base_url=metadata.base_url,
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
             tools=metadata.tools or []
@@ -149,6 +154,7 @@ class AgentLoader:
         provider = config.provider
 
         # Determine model and provider
+        # ==== GOOGLE =====
         if provider.lower() == "google":
             if os.getenv("GOOGLE_GENAI_USE_VERTEXAI") == "TRUE":
                 model_pydantic = GeminiModel(
@@ -162,13 +168,39 @@ class AgentLoader:
                     provider='google-gla',
                     settings=settings
                 )
+        
+        # ==== OPENAI =====
+        elif provider.lower() == "openai":
+            if config.base_url:                
+                if not os.getenv("LLM_API_KEY"):
+                    logger.error("ERROR: LLM_API_KEY environment variable is not set.")
+                    api_key = ""
+                else:
+                    api_key = os.getenv("LLM_API_KEY")
+
+                model_pydantic = OpenAIModel(
+                    model,
+                    provider=OpenAIProvider(
+                        base_url=config.base_url,
+                        api_key=api_key
+                    ),
+                    settings=settings
+                )
+
+            else:
+                model_pydantic = OpenAIModel(
+                    model,
+                    settings=settings
+                )
+        
+        # ==== ANTHROPIC =====
         elif provider.lower() == "anthropic":
             model_pydantic = AnthropicModel(
                 model,
                 settings=settings
             )
         else:
-            raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'google' and 'anthropic'.")
+            raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'openai', 'google' and 'anthropic'.")
 
         if config.tools:
             tools = resolve_tools_from_names(config.tools)
@@ -387,8 +419,9 @@ async def main():
     # question = "How should we structure our database schema for a real-time chat application?"
     # question = "What is the exchange rate from American dollar to Argentine peso?"
     # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
-    question = "What is the weather forecast in Mountain View, CA for the next days?"
+    # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
+    question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
     print(f"Question: {question}")
    
     result_output = await get_routing(question, available_categories, orchestator)
