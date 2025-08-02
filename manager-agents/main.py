@@ -421,7 +421,8 @@ async def main():
     # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
-    question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
+    # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
+    question = "Resume the menu of the burger store and tell me what are the most popular items."
     print(f"Question: {question}")
    
     result_output = await get_routing(question, available_categories, orchestator)
