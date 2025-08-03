@@ -44,6 +44,7 @@ class AgentConfig:
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
     tools: Optional[List[str]] = None
+    use_memory: Optional[str] = None
 
 class AgentMetadata(BaseModel):
     """Pydantic model for agent metadata parsing"""
@@ -56,6 +57,7 @@ class AgentMetadata(BaseModel):
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
     tools: Optional[List[str]] = None
+    use_memory: Optional[str] = None
     version: Optional[str] = None
 
 class AgentLoader:
@@ -90,7 +92,8 @@ class AgentLoader:
             base_url=metadata.base_url,
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
-            tools=metadata.tools or []
+            tools=metadata.tools or [],
+            use_memory=metadata.use_memory
         )
     
     def _extract_frontmatter(self, content: str) -> AgentMetadata:
@@ -207,6 +210,12 @@ class AgentLoader:
         else:
             tools = []
 
+        if config.use_memory:
+            if config.use_memory.lower() == "google_memory":
+                logger.info(f"Using google memory for agent: {config.name}")
+            else:
+                logger.info(f"Using another memory for agent: {config.name}")
+
         # Create PydanticAI agent
         agent = Agent(
             model=model_pydantic,
@@ -244,6 +253,34 @@ class AgentLoader:
 
         return self.agents
     
+    def load_selected_agents(self, agent_names: List[str]) -> Dict[str, Agent]:
+        """Load specific agents by name"""
+        if not self.agents_directory.exists():
+            raise FileNotFoundError(f"Agents directory not found: {self.agents_directory}")
+
+        # Find all .md files recursively
+        md_files = list(self.agents_directory.rglob("*.md"))
+        
+        if not md_files:
+            logger.warning(f"No .md files found in {self.agents_directory}")
+            return {}
+        
+        logger.info(f"Loading {len(md_files)} agent files...")
+        loaded_agents = {}
+        for file_path in md_files:
+            try:
+                config = self.parse_markdown_file(file_path)
+                if config.name in agent_names:
+                    agent = self.load_agent_from_file(file_path)
+                    loaded_agents[config.name] = agent
+                    self.agents[config.name] = agent
+                    self.configs[config.name] = config
+                    logger.info(f"✓ Loaded agent: {config.name} ({config.category})")
+            except Exception as e:
+                logger.error(f"✗ Failed to load {file_path}: {e}")
+        
+        return loaded_agents
+    
     def get_agent(self, name: str) -> Optional[Agent]:
         """Get a specific agent by name"""
         return self.agents.get(name)
@@ -267,9 +304,20 @@ class AgentLoader:
 class AgentManager:
     """Higher-level manager for working with loaded agents"""
 
-    def __init__(self, agents_directory: str = "./agents"):
+    def __init__(
+        self,
+        agents_directory: str = "./agents",
+        user_id: Optional[str] = None,
+        selected_agents: Optional[List[str]] = None
+    ) -> None:
         self.loader = AgentLoader(agents_directory)
-        self.agents = self.loader.load_all_agents()
+        self.user_id = user_id or "default_user_id"
+        if selected_agents:
+            self.agents = self.loader.load_selected_agents(selected_agents)
+        else:
+            self.agents = self.loader.load_all_agents()
+        if not self.agents:
+            logger.error("No agents loaded. Please check your agents directory, agent files or agent selected.")
 
     def get_categories(self) -> str:
         """Get a formatted string of available agent categories"""
@@ -294,7 +342,7 @@ class AgentManager:
         agent = self.loader.get_agent(agent_name)
         if not agent:
             raise ValueError(f"Agent '{agent_name}' not found")
-        
+
         result = await agent.run(message, **kwargs)
         return result.output
     
@@ -357,12 +405,11 @@ async def get_routing(question: str, available_categories: str, orchestrator: Or
                 logger.error("Routing agent returned empty or invalid result")
                 return None
             
-            # Clean and parse the result
-            cleaned_result = _clean_json_response(result.output)
-            result_routing = RoutingResult.model_validate_json(cleaned_result)
-            
+            # Clean the response text
+            cleaned_response = _clean_json_response(result.output)
+
             logger.info("Successfully obtained routing result with fallback method")
-            return result_routing
+            return cleaned_response
             
         except Exception as fallback_error:
             logger.error(f"Fallback routing also failed: {fallback_error}")
@@ -391,12 +438,19 @@ def _clean_json_response(response_text: str) -> str:
 # Usage example
 async def main():
     """Example usage of the agent loader"""
-    
-    # Step 1: Load agents using AgentManager
-    root = Path("./agents")
-    manager = AgentManager(root)
+    user_id = "user_test_001"
 
-    # Step 2: Create orchestrator with loaded agents
+    # load agents using AgentManager
+    manager = AgentManager(
+        agents_directory="./agents",
+        user_id=user_id,
+        selected_agents=["burger_store_assistant"]
+    )
+
+    if not manager.agents:
+        return
+
+    # create orchestrator with loaded agents
     orchestator = Orchestrator(
         agents=manager.agents,
         orchestrator_directory="./orchestrator"
@@ -422,7 +476,7 @@ async def main():
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
-    question = "Resume the menu of the burger store and tell me what are the most popular items."
+    question = "Resume the menu of the burger store"
     print(f"Question: {question}")
    
     result_output = await get_routing(question, available_categories, orchestator)
