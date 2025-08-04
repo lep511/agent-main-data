@@ -95,8 +95,12 @@ def main():
                 print("❌ Error: No agent engine ID provided. Use --engine-id")
                 return 1
             
+            if not args.fact:
+                print("❌ Error: --fact is required for --create-memory")
+                return 1
+            
             print(f"Creating memory for user: {args.user_id}")
-            memory_name = create_memory_bank(args.engine_id, args.user_id)
+            memory_name = create_memory_bank(args.engine_id, args.user_id, args.fact)
 
             if memory_name:
                 print(f"✅ Memory created successfully!")

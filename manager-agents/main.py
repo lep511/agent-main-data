@@ -11,6 +11,7 @@ from orchestrator.orchestrator_core import (
     parse_routing_result_raw
 )
 from tools.manager import resolve_tools_from_names
+from memory.memory_tools import tool_load_memory
 from pydantic import BaseModel
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName
@@ -19,6 +20,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.settings import ModelSettings
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 
 # Configure logging
@@ -49,6 +51,7 @@ class AgentConfig:
     base_url: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
+    include: Optional[List[str]] = None
     tools: Optional[List[str]] = None
 
 class AgentMetadata(BaseModel):
@@ -62,6 +65,7 @@ class AgentMetadata(BaseModel):
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
     tools: Optional[List[str]] = None
+    include: Optional[List[str]] = None
     version: Optional[str] = None
 
 class AgentLoader:
@@ -99,6 +103,7 @@ class AgentLoader:
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
             tools=metadata.tools or [],
+            include=metadata.include or []
         )
     
     def _extract_frontmatter(self, content: str) -> AgentMetadata:
@@ -151,9 +156,33 @@ class AgentLoader:
         
         # Define system prompt and add extra information
         system_prompt = config.prompt.strip()
-        system_prompt += f"\n\n## User information\n- User ID: {self.user_id}\n"
-        
+
+        # Check include
+        if config.include:
+            for item in config.include:
+                if item == "user_id":
+                    system_prompt = system_prompt.replace("{{user_id}}", self.user_id)
+                elif item == "current_time_utc":
+                    # Get current UTC datetime
+                    utc_now = datetime.now(timezone.utc)
+                    utc_now_fmt = utc_now.strftime("%Y-%m-%d %H:%M:%S")
+                    system_prompt = system_prompt.replace("{{current_time_utc}}", utc_now_fmt)
+                elif item == "current_time":
+                    # Get current local datetime
+                    local_now = datetime.now()
+                    local_now_fmt = local_now.strftime("%Y-%m-%d %H:%M:%S")
+                    system_prompt = system_prompt.replace("{{current_time}}", local_now_fmt)
+                elif item == "memory":
+                    result = tool_load_memory(self.user_id)
+                    if result:
+                        system_prompt = system_prompt.replace("{{memory}}", result)
+                    else:
+                        system_prompt = system_prompt.replace("{{memory}}", "")
+                else:
+                    logger.warning(f"Unknown include item: {item}. Skipping.")
+
         # logger.info(f"Loading agent: {config.name} from {file_path}")
+        
 
         # Define model settings
         model = DEFAULT_MODEL
@@ -214,6 +243,7 @@ class AgentLoader:
         else:
             raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'openai', 'google' and 'anthropic'.")
 
+        # Check tools
         if config.tools:
             tools = resolve_tools_from_names(config.tools)
         else:
@@ -442,13 +472,13 @@ def _clean_json_response(response_text: str) -> str:
 # Usage example
 async def main():
     """Example usage of the agent loader"""
-    user_id = "user_test_001"
+    user_id = "user_test_003"
 
     # load agents using AgentManager
     manager = AgentManager(
         agents_directory="./agents",
         user_id=user_id,
-        selected_agents=["burger_store_assistant"]
+        # selected_agents=["burger_store_assistant"]
     )
 
     if not manager.agents:
@@ -476,13 +506,15 @@ async def main():
     # question = "Can you analyze our user feedback and identify the top pain points in our app?"
     # question = "How should we structure our database schema for a real-time chat application?"
     # question = "What is the exchange rate from American dollar to Argentine peso?"
-    # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
+    question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
-    question = "I like the cheeseburger which one do you recommend?"
+    # question = "I like the cheeseburger which one do you recommend?"
+    print("=" * 120)
     print(f"Question: {question}")
-   
+    print("=" * 120)
+
     result_output = await get_routing(question, available_categories, orchestator)
     print(result_output)
     specialist = result_output['specialists'][0]
@@ -490,13 +522,13 @@ async def main():
     response1 = await manager.run_agent(specialist, question)
     print(f"\n{specialist} Response:\n{response1.output}")
 
-    approve_order = "Yes, I want to order one Double Cheeseburger."
-    response2 = await manager.run_agent(specialist, approve_order, message_history=response1.new_messages())  
-    print(f"\n{specialist} Response:\n{response2.output}")
+    # approve_order = "Yes, I want to order one Double Cheeseburger."
+    # response2 = await manager.run_agent(specialist, approve_order, message_history=response1.new_messages())  
+    # print(f"\n{specialist} Response:\n{response2.output}")
 
-    approve_order = "Yes is correct. Save my preferences."
-    response3 = await manager.run_agent(specialist, approve_order, message_history=response2.new_messages())  
-    print(f"\n{specialist} Response:\n{response3.output}")
+    # approve_order = "Yes is correct. Save my preferences."
+    # response3 = await manager.run_agent(specialist, approve_order, message_history=response2.new_messages())  
+    # print(f"\n{specialist} Response:\n{response3.output}")
 
     # orchestrator_agent = orchestrator.orchestrator_agent
 

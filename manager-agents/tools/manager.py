@@ -10,7 +10,7 @@ from tools.datetime import (
     tool_get_current_datetime_utc,
     tool_get_current_datetime_iso
 )
-from tools.memory import tool_load_memory, tool_save_memory
+from memory.memory_tools import tool_load_memory, tool_save_memory
 from tools.misc import tool_create_burger_order
 import logging
 
