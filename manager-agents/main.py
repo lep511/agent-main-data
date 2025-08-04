@@ -10,7 +10,8 @@ from orchestrator.orchestrator_core import (
     RoutingResult,
     parse_routing_result_raw
 )
-from tools.manager import resolve_tools_from_names
+from tools.manager_tools import resolve_tools_from_names
+from output.manager_output import get_output_registry
 from memory.memory_tools import tool_load_memory
 from pydantic import BaseModel
 from pydantic_ai import Agent
@@ -53,6 +54,7 @@ class AgentConfig:
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
     include: Optional[List[str]] = None
+    output_type: Optional[str] = None
     tools: Optional[List[str]] = None
 
 class AgentMetadata(BaseModel):
@@ -68,6 +70,7 @@ class AgentMetadata(BaseModel):
     tags: Optional[List[str]] = None
     tools: Optional[List[str]] = None
     include: Optional[List[str]] = None
+    output_type: Optional[str] = None
     version: Optional[str] = None
 
 class AgentLoader:
@@ -106,7 +109,8 @@ class AgentLoader:
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
             tools=metadata.tools or [],
-            include=metadata.include or []
+            include=metadata.include or [],
+            output_type=metadata.output_type
         )
     
     def _extract_frontmatter(self, content: str) -> AgentMetadata:
@@ -156,31 +160,31 @@ class AgentLoader:
     def load_agent_from_file(self, file_path: Path) -> Agent:
         """Load a single agent from a markdown file"""
         config = self.parse_markdown_file(file_path)
-        
-        # Define system prompt and add extra information
-        system_prompt = config.prompt.strip()
+
+        # Define instructions and add extra information
+        instructions = config.prompt.strip()
 
         # Check include
         if config.include:
             for item in config.include:
                 if item == "user_id":
-                    system_prompt = system_prompt.replace("{{user_id}}", self.user_id)
+                    instructions = instructions.replace("{{user_id}}", self.user_id)
                 elif item == "current_time_utc":
                     # Get current UTC datetime
                     utc_now = datetime.now(timezone.utc)
                     utc_now_fmt = utc_now.strftime("%Y-%m-%d %H:%M:%S")
-                    system_prompt = system_prompt.replace("{{current_time_utc}}", utc_now_fmt)
+                    instructions = instructions.replace("{{current_time_utc}}", utc_now_fmt)
                 elif item == "current_time":
                     # Get current local datetime
                     local_now = datetime.now()
                     local_now_fmt = local_now.strftime("%Y-%m-%d %H:%M:%S")
-                    system_prompt = system_prompt.replace("{{current_time}}", local_now_fmt)
+                    instructions = instructions.replace("{{current_time}}", local_now_fmt)
                 elif item == "memory":
                     result = tool_load_memory(self.user_id)
                     if result:
-                        system_prompt = system_prompt.replace("{{memory}}", result)
+                        instructions = instructions.replace("{{memory}}", result)
                     else:
-                        system_prompt = system_prompt.replace("{{memory}}", "")
+                        instructions = instructions.replace("{{memory}}", "")
                 else:
                     logger.warning(f"Unknown include item: {item}. Skipping.")
 
@@ -246,17 +250,32 @@ class AgentLoader:
         else:
             raise ValueError(f"Unsupported provider: {provider}. Supported providers are 'openai', 'google' and 'anthropic'.")
 
+        # Create parameters for the agent
+        parameters = {
+            "model": model_pydantic,
+            "instructions": instructions
+        }
+
         # Check tools
         if config.tools:
             tools = resolve_tools_from_names(config.tools)
-        else:
-            tools = []
+            if not tools:
+                logger.error(f"ERROR: No tools found for names: {config.tools}. Please check your tools configuration.")
+            else:
+                parameters["tools"] = tools
+ 
+        # Check output type
+        if config.output_type:
+            outputs = get_output_registry()
+            output_type = outputs.get(config.output_type)
+            if not output_type:
+                logger.error(f"ERROR: Output type '{config.output_type}' not found in output registry.")
+            else:
+                parameters["output_type"] = output_type
 
         # Create PydanticAI agent
         agent = Agent(
-            model=model_pydantic,
-            system_prompt=system_prompt,
-            tools=tools
+            **parameters,
         )
         
         # Store configuration for reference
@@ -509,11 +528,14 @@ async def main():
     # question = "Can you analyze our user feedback and identify the top pain points in our app?"
     # question = "How should we structure our database schema for a real-time chat application?"
     # question = "What is the exchange rate from American dollar to Argentine peso?"
-    question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
+    # question = "My IPhone is making a loud strange noise after the latest update—should I be worried?"
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
     # question = "I like the cheeseburger which one do you recommend?"
+    # question = "Analyze this invoice: Vendor: Acme Corp, 123 Main St, Springfield, IL 62704 Invoice Number: INV-2025-001 Date: 2025-02-10 Items: - Widget A, 5 units, $10.00 each - Widget B, 2 units, $15.00 each Total: $80.00 USD"
+    # question = "Extract: red square, blue circle, green triangle"
+    question = "Extract: square size 10, circle size 20, triangle size 30"
     print("=" * 120)
     print(f"Question: {question}")
     print("=" * 120)
