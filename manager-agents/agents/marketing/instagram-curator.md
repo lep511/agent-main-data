@@ -6,6 +6,7 @@ provider: "google"
 temperature: 0.8
 max_tokens: 4000
 tags: ["instagram-marketing", "visual-storytelling", "content-curation", "social-media-growth", "community-engagement"]
+output_type: "split_into_words"
 version: "1.0"
 ---
 
