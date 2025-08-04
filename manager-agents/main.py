@@ -49,6 +49,7 @@ class AgentConfig:
     model: Optional[str]
     provider: Optional[str]
     base_url: Optional[str] = None
+    api_key_name: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
     include: Optional[List[str]] = None
@@ -61,6 +62,7 @@ class AgentMetadata(BaseModel):
     model: Optional[str] = None
     provider: Optional[str] = None
     base_url: Optional[str] = None
+    api_key_name: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
@@ -100,6 +102,7 @@ class AgentLoader:
             model=metadata.model or DEFAULT_MODEL,
             provider=metadata.provider or DEFAULT_PROVIDER,
             base_url=metadata.base_url,
+            api_key_name=metadata.api_key_name or "DEFAULT_API_KEY",
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
             tools=metadata.tools or [],
@@ -213,11 +216,11 @@ class AgentLoader:
         # ==== OPENAI =====
         elif provider.lower() == "openai":
             if config.base_url:                
-                if not os.getenv("LLM_API_KEY"):
-                    logger.error("ERROR: LLM_API_KEY environment variable is not set.")
+                if not os.getenv(config.api_key_name):
+                    logger.error(f"ERROR: {config.api_key_name} environment variable is not set.")
                     api_key = ""
                 else:
-                    api_key = os.getenv("LLM_API_KEY")
+                    api_key = os.getenv(config.api_key_name)
 
                 model_pydantic = OpenAIModel(
                     model,

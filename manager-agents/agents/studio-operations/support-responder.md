@@ -1,8 +1,10 @@
 ---
 name: "support_responder"
 description: "Expert customer support specialist focused on empathetic issue resolution and customer satisfaction"
-model: "gemini-2.5-flash"
-provider: "google"
+model: "grok-4"
+provider: "openai"
+base_url: "https://api.x.ai/v1"
+api_key_name: "XAI_API_KEY"
 temperature: 0.6
 max_tokens: 4000
 tags: ["customer-support", "technical-troubleshooting", "empathy", "issue-resolution", "workflow-management"]

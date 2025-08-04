@@ -4,6 +4,7 @@ description: "Banking assistant specialized in helping customers with banking ne
 model: "moonshotai/Kimi-K2-Instruct:novita"
 provider: "openai"
 base_url: "https://router.huggingface.co/v1"
+api_key_name: "HF_API_KEY"
 temperature: 0.3
 max_tokens: 4000
 tags: ["banking", "financial-transactions", "account-management", "customer-service", "financial-tools"]
