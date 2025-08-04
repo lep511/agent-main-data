@@ -10,6 +10,8 @@ from tools.datetime import (
     tool_get_current_datetime_utc,
     tool_get_current_datetime_iso
 )
+from tools.memory import tool_load_memory, tool_save_memory
+from tools.misc import tool_create_burger_order
 import logging
 
 # Configure logging
@@ -113,6 +115,74 @@ def get_tool_registry() -> Dict[str, Callable]:
         result = tool_get_weather_forecast(location)
         logger.debug(f"Weather for {location}: {result}")
         return result
+    
+    # -------------------------------- Memory ---------------------------------
+    def load_memory(user_id: str) -> str:
+        """
+        Load the user's memory facts from the Google Agent Memory.
+
+        Args:
+            user_id (str): The ID of the user whose memory to load
+
+        Returns:
+            str: A string containing the user's memory facts, or an error message if retrieval failed
+        """
+        result = tool_load_memory(user_id)
+        if result:
+            logger.debug(f"Loaded memory for user {user_id}: {result}")
+            return result
+        else:
+            logger.error(f"Failed to load memory for user {user_id}")
+            return "Failed to load memory. Please try again later."
+
+    def save_memory(user_id: str, fact: str) -> str:
+        """
+        Save a fact to the user's memory.
+
+        Args:
+            user_id (str): The ID of the user to save memory for
+            fact (str): The fact to save in memory
+
+        Returns:
+            str: The name of the created memory bank, or an error message if creation failed
+        """
+        # Check if the user is the default user
+        if user_id == "current_user":
+            return ""
+        
+        result = tool_save_memory(user_id, fact)
+        if result:
+            logger.debug(f"Saved memory for user {user_id}: {result}")
+            return result
+        else:
+            logger.error(f"Failed to save memory for user {user_id}")
+            return "Failed to save memory. Please try again later."
+
+    # --------------------------- Burger order creation ------------------------
+    def create_burger_order(user_id: str, order_details: str) -> str:
+        """
+        Create a burger order for the user.
+
+        Args:
+            user_id (str): The ID of the user placing the order
+            order_details (str): The details of the burger order
+
+        Returns:
+            str: Confirmation message or error message if creation failed
+        """
+
+        # Check if the user is the default user
+        if user_id == "current_user":
+            return ""
+        
+        result = tool_create_burger_order(user_id, order_details)
+        if result:
+            logger.debug(f"Burger order for user {user_id}: {result}")
+            return result
+        else:
+            logger.error(f"Failed to create burger order for user {user_id}")
+            return "Failed to create burger order. Please try again later."
+
     # ------------------------------ END -----------------------------------------
 
     return {
@@ -122,7 +192,10 @@ def get_tool_registry() -> Dict[str, Callable]:
         "get_current_datetime_utc": get_current_datetime_utc,
         "get_current_datetime_iso": get_current_datetime_iso,
         "scrape_search": scrape_search,
-        "get_weather": get_weather
+        "get_weather": get_weather,
+        "load_memory": load_memory,
+        "save_memory": save_memory,
+        "create_burger_order": create_burger_order
     }
 
 

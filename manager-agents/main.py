@@ -4,7 +4,12 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
-from orchestrator.orchestrator_core import Orchestrator, RoutingResult
+from urllib import response
+from orchestrator.orchestrator_core import (
+    Orchestrator, 
+    RoutingResult,
+    parse_routing_result_raw
+)
 from tools.manager import resolve_tools_from_names
 from pydantic import BaseModel
 from pydantic_ai import Agent
@@ -38,13 +43,13 @@ class AgentConfig:
     category: str
     prompt: str
     file_path: str
+    user_id: str
     model: Optional[str]
     provider: Optional[str]
     base_url: Optional[str] = None
     temperature: Optional[float] = 0.7
     max_tokens: Optional[int] = 4000
     tools: Optional[List[str]] = None
-    use_memory: Optional[str] = None
 
 class AgentMetadata(BaseModel):
     """Pydantic model for agent metadata parsing"""
@@ -57,17 +62,17 @@ class AgentMetadata(BaseModel):
     max_tokens: Optional[int] = None
     tags: Optional[List[str]] = None
     tools: Optional[List[str]] = None
-    use_memory: Optional[str] = None
     version: Optional[str] = None
 
 class AgentLoader:
     """Loads and manages PydanticAI agents from markdown files"""
     
-    def __init__(self, agents_directory: str = "./agents"):
+    def __init__(self, agents_directory: str, user_id: str):
         self.agents_directory = Path(agents_directory)
         self.agents: Dict[str, Agent] = {}
         self.configs: Dict[str, AgentConfig] = {}
-        
+        self.user_id = user_id
+
     def parse_markdown_file(self, file_path: Path) -> AgentConfig:
         """Parse a markdown file and extract agent configuration"""
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -87,13 +92,13 @@ class AgentLoader:
             category=category,
             prompt=prompt,
             file_path=str(file_path),
+            user_id=self.user_id,
             model=metadata.model or DEFAULT_MODEL,
             provider=metadata.provider or DEFAULT_PROVIDER,
             base_url=metadata.base_url,
             temperature=metadata.temperature or 0.7,
             max_tokens=metadata.max_tokens or 4000,
             tools=metadata.tools or [],
-            use_memory=metadata.use_memory
         )
     
     def _extract_frontmatter(self, content: str) -> AgentMetadata:
@@ -143,11 +148,15 @@ class AgentLoader:
     def load_agent_from_file(self, file_path: Path) -> Agent:
         """Load a single agent from a markdown file"""
         config = self.parse_markdown_file(file_path)
-        model = DEFAULT_MODEL
-
+        
+        # Define system prompt and add extra information
+        system_prompt = config.prompt.strip()
+        system_prompt += f"\n\n## User information\n- User ID: {self.user_id}\n"
+        
         # logger.info(f"Loading agent: {config.name} from {file_path}")
 
         # Define model settings
+        model = DEFAULT_MODEL
         settings = ModelSettings(
             temperature=config.temperature, 
             max_tokens=config.max_tokens
@@ -210,16 +219,10 @@ class AgentLoader:
         else:
             tools = []
 
-        if config.use_memory:
-            if config.use_memory.lower() == "google_memory":
-                logger.info(f"Using google memory for agent: {config.name}")
-            else:
-                logger.info(f"Using another memory for agent: {config.name}")
-
         # Create PydanticAI agent
         agent = Agent(
             model=model_pydantic,
-            system_prompt=config.prompt,
+            system_prompt=system_prompt,
             tools=tools
         )
         
@@ -310,8 +313,8 @@ class AgentManager:
         user_id: Optional[str] = None,
         selected_agents: Optional[List[str]] = None
     ) -> None:
-        self.loader = AgentLoader(agents_directory)
-        self.user_id = user_id or "default_user_id"
+        self.user_id = user_id or "current_user"
+        self.loader = AgentLoader(agents_directory, self.user_id)
         if selected_agents:
             self.agents = self.loader.load_selected_agents(selected_agents)
         else:
@@ -337,14 +340,14 @@ class AgentManager:
                 lines.append(f"- **{name}**: {config.description or 'No description available'}")
         return "\n".join(lines)
     
-    async def run_agent(self, agent_name: str, message: str, **kwargs) -> str:
+    async def run_agent(self, agent_name: str, message: str, **kwargs) -> Any:
         """Run a specific agent with a message"""
         agent = self.loader.get_agent(agent_name)
         if not agent:
             raise ValueError(f"Agent '{agent_name}' not found")
 
         result = await agent.run(message, **kwargs)
-        return result.output
+        return result
     
     async def run_category_consensus(self, category: str, message: str) -> Dict[str, str]:
         """Run all agents in a category and return their responses"""
@@ -407,10 +410,11 @@ async def get_routing(question: str, available_categories: str, orchestrator: Or
             
             # Clean the response text
             cleaned_response = _clean_json_response(result.output)
+            routing_result = parse_routing_result_raw(cleaned_response)
 
             logger.info("Successfully obtained routing result with fallback method")
-            return cleaned_response
-            
+            return routing_result
+
         except Exception as fallback_error:
             logger.error(f"Fallback routing also failed: {fallback_error}")
             return None
@@ -476,17 +480,24 @@ async def main():
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
-    question = "Resume the menu of the burger store"
+    question = "I like the cheeseburger which one do you recommend?"
     print(f"Question: {question}")
    
     result_output = await get_routing(question, available_categories, orchestator)
     print(result_output)
-    specialists = result_output['specialists'][0]
+    specialist = result_output['specialists'][0]
 
-    response = await manager.run_agent(specialists, question)
-    print(f"\n{specialists} Response:\n{response}")
+    response1 = await manager.run_agent(specialist, question)
+    print(f"\n{specialist} Response:\n{response1.output}")
 
-    # print("\n=== Orchestrator Agent First Step ===")
+    approve_order = "Yes, I want to order one Double Cheeseburger."
+    response2 = await manager.run_agent(specialist, approve_order, message_history=response1.new_messages())  
+    print(f"\n{specialist} Response:\n{response2.output}")
+
+    approve_order = "Yes is correct. Save my preferences."
+    response3 = await manager.run_agent(specialist, approve_order, message_history=response2.new_messages())  
+    print(f"\n{specialist} Response:\n{response3.output}")
+
     # orchestrator_agent = orchestrator.orchestrator_agent
 
     # result1 = await orchestrator_agent.run(question)
@@ -494,25 +505,6 @@ async def main():
 
     # print("\n=== Orchestrator Agent Clarification ===")
 
-    clarification = '''
-1.  **Budget:** We're aiming for something in the range of **$15,000 to $20,000** for the initial build. We have a bit of flexibility for essential features, but we want to be mindful of costs.
-
-2.  **Timeline:** Ideally, we'd love to launch the basic version of the platform within **3 months**. We understand that more complex features might push that out, but a quick go-to-market is important for us.
-
-3.  **Key Features:** Our absolute must-haves include:
-    * A robust **product catalog** with categories and subcategories.
-    * **User accounts** with order history and wishlists.
-    * Secure **payment gateway integration** (think Stripe and PayPal).
-    * Flexible **shipping options** with various rates.
-    * Basic **marketing tools** like discount codes and email sign-ups.
-    * An easy-to-use **admin panel** for managing products and orders.
-
-4.  **Technical Expertise:** Our internal team has some decent technical skills, but we're definitely **not looking for a fully managed solution** where we have to do everything ourselves. We'd prefer a platform that's fairly intuitive for our marketing and operations team to manage day-to-day. We'd be happy to have our developers handle custom integrations or more advanced maintenance if needed.
-
-5.  **Target Audience:** We're primarily targeting **small to medium-sized businesses (SMBs)**, specifically those in the craft and artisanal goods sector. Our ideal customer values unique, handmade items and appreciates a curated shopping experience.
-
-6.  **Product Type:** We'll be selling **physical goods**, mainly handmade jewelry, custom artwork, and unique home decor items. We might consider digital products down the line, but for now, it's all about physical inventory.
-''' 
     # print("\n=== Clarification Request ===")
     # result2 = await orchestrator_agent.run(
     #     clarification,

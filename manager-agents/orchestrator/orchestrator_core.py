@@ -10,6 +10,7 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.settings import ModelSettings
 from dotenv import load_dotenv
 from typing_extensions import TypedDict
+import json
 import logging
 import os
 import re
@@ -44,6 +45,39 @@ class RoutingResult(TypedDict, total=False):
     technical_keywords: List[str] = []
     intent_keywords: List[str] = []
     requires_multiple_expertise: bool
+
+def parse_routing_result_raw(json_str: str) -> RoutingResult:
+    """Parse a JSON string and return a RoutingResult dictionary."""
+    try:
+        data = json.loads(json_str)
+        
+        # Validate and clean the data
+        result: RoutingResult = {}
+        
+        if 'query_type' in data:
+            result['query_type'] = str(data['query_type'])
+        
+        if 'categories' in data:
+            result['categories'] = [str(item) for item in data['categories']]
+        
+        if 'specialists' in data:
+            result['specialists'] = [str(item) for item in data['specialists']]
+        
+        if 'technical_keywords' in data:
+            result['technical_keywords'] = [str(item) for item in data['technical_keywords']]
+        
+        if 'intent_keywords' in data:
+            result['intent_keywords'] = [str(item) for item in data['intent_keywords']]
+        
+        if 'requires_multiple_expertise' in data:
+            result['requires_multiple_expertise'] = bool(data['requires_multiple_expertise'])
+        
+        return result
+        
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON string: {e}")
+    except (KeyError, TypeError, ValueError) as e:
+        raise ValueError(f"Invalid data structure: {e}")
 
 class Orchestrator:
     """Orchestrator for managing multiple agents"""

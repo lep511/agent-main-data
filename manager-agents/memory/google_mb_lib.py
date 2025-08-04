@@ -50,7 +50,7 @@ def create_memory_bank(agent_engine_id: str, user_id: str) -> Optional[str]:
         
         user_memory = client.agent_engines.create_memory(
             name=agent_engine.api_resource.name,
-            fact=f"The user's name is {user_id} and they have a passion for learning new things.",
+            fact=f"I like the cheeseburger without mayonnaise.",
             scope={"user_id": user_id},
         )
         if not user_memory:

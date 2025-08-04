@@ -1,8 +1,8 @@
 ---
 name: "burger_store_assistant"
 description: "Specialized burger store assistant for menu information and order processing"
-model: "gemini-2.5-flash"
-provider: "google"
+model: "claude-3-5-sonnet"
+provider: "anthropic"
 temperature: 0.4
 max_tokens: 3000
 tags: ["burger-menu", "order-taking", "food-service", "restaurant", "point-of-sale"]
