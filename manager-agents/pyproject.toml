@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-memory = [
+google-memory = [
     "google-cloud-aiplatform>=1.100.0",
+]
+mongodb-memory = [
+    "pymongo[srv]>=4.13.2",
 ]

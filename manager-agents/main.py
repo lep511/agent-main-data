@@ -500,21 +500,21 @@ async def main():
     manager = AgentManager(
         agents_directory="./agents",
         user_id=user_id,
-        selected_agents=["instagram_curator"]
+        # selected_agents=["instagram_curator"]
     )
 
     if not manager.agents:
         return
 
     # create orchestrator with loaded agents
-    orchestator = Orchestrator(
+    orchestrator = Orchestrator(
         agents=manager.agents,
         orchestrator_directory="./orchestrator"
     )
-    
-    print(f"\nAvailable workflows: {orchestator.list_workflows()}")
 
-    participants = orchestator.get_agent_list()
+    print(f"\nAvailable workflows: {orchestrator.list_workflows()}")
+
+    participants = orchestrator.get_agent_list()
     print(f"Participants: {participants}")
 
     print("\n=== Routing Agent ===")
@@ -523,7 +523,7 @@ async def main():
     print(f"\nAvailable categories:\n{available_categories}")
     # print(f"\nAvailable categories formatted: {query_type}")
 
-    question = "How should we approach building a new e-commerce platform and publish in Instagram?"
+    # question = "How should we approach building a new e-commerce platform and publish in Instagram?"
     # question = "What UX research methods should we use to validate our new feature ideas?"
     # question = "Can you analyze our user feedback and identify the top pain points in our app?"
     # question = "How should we structure our database schema for a real-time chat application?"
@@ -532,7 +532,7 @@ async def main():
     # question = "What is the weather forecast in Mountain View, CA for the next days?"
     # question = "Resumeme esta noticia: https://www.elpais.com.uy/el-empresario/para-que-usan-inteligencia-artificial-los-ceo-uruguayos-chatgpt-gemini-copilot-y-zapia-entre-las-elegidas"
     # question = "Why was my checking account charged a $35 overdraft fee when I thought I had overdraft protection enabled?"
-    # question = "I like the cheeseburger which one do you recommend?"
+    question = "I like the cheeseburger which one do you recommend?"
     # question = "Analyze this invoice: Vendor: Acme Corp, 123 Main St, Springfield, IL 62704 Invoice Number: INV-2025-001 Date: 2025-02-10 Items: - Widget A, 5 units, $10.00 each - Widget B, 2 units, $15.00 each Total: $80.00 USD"
     # question = "Extract: red square, blue circle, green triangle"
     # question = "Extract: square size 10, circle size 20, triangle size 30"
@@ -541,7 +541,7 @@ async def main():
     print(f"Question: {question}")
     print("=" * 120)
 
-    result_output = await get_routing(question, available_categories, orchestator)
+    result_output = await get_routing(question, available_categories, orchestrator)
     print(result_output)
     specialist = result_output['specialists'][0]
 
