@@ -15,6 +15,7 @@ PROJECT_ID = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
 # --- Spanner Client Initialization ---
 try:
+    print(f"Project id: {PROJECT_ID}")
     spanner_client = spanner.Client(project=PROJECT_ID)
     instance = spanner_client.instance(INSTANCE_ID)
     database = instance.database(DATABASE_ID)
