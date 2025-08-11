@@ -22,7 +22,21 @@ root_agent = Agent(
         5.  Location Details: For each place or event mentioned within a plan, you MUST provide its name, precise latitude, precise longitude, and a brief, helpful description.
         6.  Maximum Activities: The plan must contain a maximum of 3 distinct activities.
 
-        RETURN PLAN in MARKDOWN FORMAT 
+        Return your response *exclusively* as a single JSON object. This object should contain a top-level key, "fun_plans", which holds a plan objects. Each plan object in the list must strictly adhere to the following structure:
+
+        --json--
+        {
+          "plan_description": "A summary of the overall plan, consisting of **exactly three sentences**. Craft these sentences in a friendly, enthusiastic, and conversational tone, as if you're suggesting this awesome idea to a close friend. Make it sound exciting and personal, highlighting the positive aspects and appeal of the plan without explicitly mentioning budget or listing interest categories.",
+          "locations_and_activities": [
+              {
+              "name": "Name of the specific place or event",
+              "latitude": 0.000000,  // Replace with actual latitude
+              "longitude": 0.000000, // Replace with actual longitude
+              "description": "A brief description of this place/event, why it's suitable for the date, and any specific details for the weekend (e.g., opening hours, event time)."
+              }
+              // Add more location/activity objects here if the plan involves multiple stops/parts
+          ]
+        }
     """,
     tools=[google_search]
 )
