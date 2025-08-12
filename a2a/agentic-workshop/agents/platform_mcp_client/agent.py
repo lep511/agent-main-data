@@ -2,7 +2,8 @@ import asyncio
 from contextlib import AsyncExitStack
 from dotenv import load_dotenv
 from google.adk.agents.llm_agent import LlmAgent
-from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseServerParams
+from google.adk.tools.mcp_tool.mcp_toolset import MCPToolset, SseConnectionParams
+
 import logging 
 import os
 import nest_asyncio # Import nest_asyncio
@@ -23,7 +24,10 @@ exit_stack: AsyncExitStack | None = None
 
 
 async def get_tools_async():
-  #REPLACE ME - FETCH TOOLS
+  """Gets tools from the File System MCP Server."""
+  tools =  MCPToolset(
+      connection_params=SseConnectionParams(url=MCP_SERVER_URL, headers={})
+  )
 
   return tools, exit_stack
  
@@ -38,7 +42,7 @@ async def get_agent_async():
   tools, exit_stack = await get_tools_async()
 
   root_agent = LlmAgent(
-      model='gemini-2.0-flash', # Adjust model name if needed based on availability
+      model='gemini-2.5-flash', # Adjust model name if needed based on availability
       name='social_agent',
       instruction="""
         You are a friendly and efficient assistant for the Instavibe social app.
@@ -62,7 +66,7 @@ async def get_agent_async():
         - Use only the provided tools. Do not try to perform actions outside of their scope.
 
       """,
-      #REPLACE ME - SET TOOLs
+        tools=[tools],
   )
   print("LlmAgent created.")
 
