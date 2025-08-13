@@ -4,7 +4,9 @@ from google.adk.tools import google_search
 root_agent = Agent(
     name="planner_agent",
     model="gemini-2.5-flash",
-    description="Agent tasked with generating creative and fun dating plan suggestions",
+    description=("This agent generates multiple fun plan suggestions tailored to your specified location, dates, and interests,"
+        "all designed for a moderate budget. It delivers detailed itineraries,"
+        "including precise venue information (name, latitude, longitude, and description), in a structured JSON format."),
     instruction="""
 
         You are a specialized AI assistant tasked with generating creative and fun plan suggestions.

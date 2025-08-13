@@ -1,31 +1,53 @@
-import logging
-
 from a2a.server.agent_execution import AgentExecutor, RequestContext
-from a2a.server.events.event_queue import EventQueue
+from a2a.server.events import EventQueue
+from a2a.server.tasks import TaskUpdater
 from a2a.types import (
-    TaskArtifactUpdateEvent,
+    Part,
     TaskState,
-    TaskStatus,
-    TaskStatusUpdateEvent,
+    TextPart,
 )
-from a2a.utils import (
-    new_agent_text_message,
-    new_data_artifact,
-    new_task,
-    new_text_artifact,
-)
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+from a2a.utils import new_agent_text_message, new_task
+from google.adk.artifacts import InMemoryArtifactService
+from google.adk.memory.in_memory_memory_service import InMemoryMemoryService
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.genai import types
 
 
-class ExtractorAgentExecutor(AgentExecutor):
-    """
-    A ExtractorAgent agent executor.
-    """
+class ADKAgentExecutor(AgentExecutor):
+    def __init__(
+        self,
+        agent,
+        status_message="Processing the planning request...",
+        artifact_name="response",
+    ):
+        """Initialize a generic ADK agent executor.
 
-    def __init__(self, agent):
+        Args:
+            agent: The ADK agent instance
+            status_message: Message to display while processing
+            artifact_name: Name for the response artifact
+        """
         self.agent = agent
+        self.status_message = status_message
+        self.artifact_name = artifact_name
+        self.runner = Runner(
+            app_name=agent.name,
+            agent=agent,
+            artifact_service=InMemoryArtifactService(),
+            session_service=InMemorySessionService(),
+            memory_service=InMemoryMemoryService(),
+        )
+
+    async def cancel(
+        self,
+        context: RequestContext,
+        event_queue: EventQueue,
+    ) -> None:
+        """Cancel the execution of a specific task."""
+        raise NotImplementedError(
+            "Cancellation is not implemented for ADKAgentExecutor."
+        )
 
     async def execute(
         self,
@@ -33,87 +55,57 @@ class ExtractorAgentExecutor(AgentExecutor):
         event_queue: EventQueue,
     ) -> None:
         query = context.get_user_input()
-        task = context.current_task
-        if not task:
-            task = new_task(context.message)
-            await event_queue.enqueue_event(task)
+        task = context.current_task or new_task(context.message)
+        await event_queue.enqueue_event(task)
 
-        async for item in self.agent.stream(query, task.context_id):
-            is_task_complete = item["is_task_complete"]
-            require_user_input = item["require_user_input"]
-            content = item["content"]
+        updater = TaskUpdater(event_queue, task.id, task.contextId)
+        if context.call_context:
+            user_id = context.call_context.user.user_name
+        else:
+            user_id = "a2a_user"
 
-            logger.info(
-                f"Stream item received: complete={is_task_complete}, require_input={require_user_input}, content_len={len(content)}"
+        try:
+            # Update status with custom message
+            await updater.update_status(
+                TaskState.working,
+                new_agent_text_message(self.status_message, task.contextId, task.id),
             )
 
-            agent_outcome = await self.agent.invoke(query, task.context_id)
-            is_task_complete = agent_outcome["is_task_complete"]
-            require_user_input = not is_task_complete
-            content = agent_outcome.get("text_parts", [])
-            data = agent_outcome.get("data", {})
-            artifact = new_text_artifact(
-                name="current_result",
-                description="Result of request to agent.",
-                text=content,
+            # Process with ADK agent
+            session = await self.runner.session_service.create_session(
+                app_name=self.agent.name,
+                user_id=user_id,
+                state={},
+                session_id=task.contextId,
             )
-            if data:
-                artifact = new_data_artifact(
-                    name="current_result",
-                    description="Result of request to agent.",
-                    data=data,
-                )
 
-            if require_user_input:
-                await event_queue.enqueue_event(
-                    TaskStatusUpdateEvent(
-                        status=TaskStatus(
-                            state=TaskState.input_required,
-                            message=new_agent_text_message(
-                                content,
-                                task.context_id,
-                                task.id,
-                            ),
-                        ),
-                        final=True,
-                        context_id=task.context_id,
-                        task_id=task.id,
-                    )
-                )
-            elif is_task_complete:
-                await event_queue.enqueue_event(
-                    TaskArtifactUpdateEvent(
-                        append=False,
-                        context_id=task.context_id,
-                        task_id=task.id,
-                        last_chunk=True,
-                        artifact=artifact,
-                    )
-                )
-                await event_queue.enqueue_event(
-                    TaskStatusUpdateEvent(
-                        status=TaskStatus(state=TaskState.completed),
-                        final=True,
-                        context_id=task.context_id,
-                        task_id=task.id,
-                    )
-                )
-            else:
-                await event_queue.enqueue_event(
-                    TaskStatusUpdateEvent(
-                        status=TaskStatus(
-                            state=TaskState.working,
-                            message=new_agent_text_message(
-                                "Analyzing your text...",
-                                task.context_id,
-                                task.id,
-                            ),
-                        ),
-                        final=False,
-                        context_id=task.context_id,
-                        task_id=task.id,
-                    )
-                )
+            content = types.Content(
+                role="user", parts=[types.Part.from_text(text=query)]
+            )
 
-    async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        raise Exception("cancel not supported")
+            response_text = ""
+            async for event in self.runner.run_async(
+                user_id=user_id, session_id=session.id, new_message=content
+            ):
+                if event.is_final_response() and event.content and event.content.parts:
+                    for part in event.content.parts:
+                        if hasattr(part, "text") and part.text:
+                            response_text += part.text + "\n"
+                        elif hasattr(part, "function_call"):
+                            # Log or handle function calls if needed
+                            pass  # Function calls are handled internally by ADK
+
+            # Add response as artifact with custom name
+            await updater.add_artifact(
+                [Part(root=TextPart(text=response_text))],
+                name=self.artifact_name,
+            )
+
+            await updater.complete()
+
+        except Exception as e:
+            await updater.update_status(
+                TaskState.failed,
+                new_agent_text_message(f"Error: {e!s}", task.contextId, task.id),
+                final=True,
+            )
