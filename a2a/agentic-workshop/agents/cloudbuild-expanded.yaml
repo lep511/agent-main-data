@@ -1,0 +1,30 @@
+steps:
+  # Build the container image for the specified agent
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      [
+        'build',
+        '-t',
+        '${_IMAGE_PATH}', # Use substitution for the full image path + tag
+        '-f',
+        '${_AGENT_NAME}/Dockerfile', # Dynamically point to the correct Dockerfile
+        '--build-arg',
+        'PROJECT_ID=${_PROJECT_ID}',
+        '--build-arg',
+        'PROJECT_NUMBER=${_PROJECT_NUMBER}',
+        '--build-arg',
+        'REGION=${_REGION}',
+        '--build-arg',
+        'REPO_NAME=${_REPO_NAME}',
+        '--build-arg',
+        'SPANNER_INSTANCE_ID=${_SPANNER_INSTANCE_ID}',
+        '--build-arg',
+        'SPANNER_DATABASE_ID=${_SPANNER_DATABASE_ID}',
+        '--build-arg',
+        'MCP_SERVER_URL=${_MCP_SERVER_URL}',
+        '.', # Build context is the project root
+      ]
+
+# Specify the image(s) to push upon successful build.
+images:
+  - '${_IMAGE_PATH}'
