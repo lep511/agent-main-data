@@ -12,8 +12,8 @@ from a2a.types import (
     AgentCard,
     AgentSkill,
 )
-from agent import root_agent as planner_agent
-from agent_executor import ADKAgentExecutor
+from planner.agent import root_agent as planner_agent
+from planner.agent_executor import ADKAgentExecutor
 from dotenv import load_dotenv
 
 
