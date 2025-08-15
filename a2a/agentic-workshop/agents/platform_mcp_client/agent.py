@@ -25,6 +25,8 @@ exit_stack: AsyncExitStack | None = None
 
 async def get_tools_async():
     """Gets tools from the File System MCP Server."""
+    if MCP_SERVER_URL == "http://0.0.0.0:8080/sse":
+        log.warning("MCP_SERVER_URL is set to default value. Please set it to the correct value.")
     tools =  MCPToolset(
         connection_params=SseConnectionParams(url=MCP_SERVER_URL, headers={})
     )

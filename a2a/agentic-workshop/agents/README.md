@@ -51,6 +51,7 @@ gcloud run deploy ${SERVICE_NAME} \
   --set-env-vars="GOOGLE_CLOUD_LOCATION=${REGION}" \
   --set-env-vars="GOOGLE_CLOUD_PROJECT=${PROJECT_ID}" \
   --set-env-vars="PUBLIC_URL=${PUBLIC_URL}" \
+  --set-env-vars="MCP_SERVER_URL=${MCP_SERVER_URL}" \
   --allow-unauthenticated \
   --project=${PROJECT_ID} \
   --min-instances=1
