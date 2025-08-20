@@ -1,10 +1,10 @@
-### Posting Agent
+### Platform MCP Client
 ```bash
 export IMAGE_TAG="latest"
 export AGENT_NAME="platform_mcp_client"
-export IMAGE_NAME="posting-agent"
+export IMAGE_NAME="platform-mcp-client"
 export IMAGE_PATH="${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPO_NAME}/${IMAGE_NAME}:${IMAGE_TAG}"
-export SERVICE_NAME="posting-agent"
+export SERVICE_NAME="platform-mcp-client"
 export PUBLIC_URL="https://${IMAGE_NAME}-${PROJECT_NUMBER}.${REGION}.run.app"
 ```
 
