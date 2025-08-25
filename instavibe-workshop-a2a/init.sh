@@ -94,4 +94,3 @@ echo "You can access the application on this machine at: http://localhost:8081"
 echo
 
 echo "--- Setup complete ---"
-exit 0
